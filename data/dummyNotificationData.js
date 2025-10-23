@@ -1,0 +1,57 @@
+export const dummyNotifications = [
+  {
+    id: 1,
+    type: "like",
+    user: {
+      id: 2,
+      username: "mehmet_bilim",
+      name: "Mehmet Demir",
+      avatar: "/placeholder.svg?height=40&width=40",
+    },
+    message: "gönderini beğendi",
+    postId: 3,
+    timestamp: "2024-01-20T16:00:00Z",
+    read: false,
+  },
+  {
+    id: 2,
+    type: "comment",
+    user: {
+      id: 3,
+      username: "zeynep_dusunce",
+      name: "Zeynep Kaya",
+      avatar: "/placeholder.svg?height=40&width=40",
+    },
+    message: "gönderine yorum yaptı",
+    postId: 3,
+    timestamp: "2024-01-20T11:00:00Z",
+    read: false,
+  },
+  {
+    id: 3,
+    type: "follow",
+    user: {
+      id: 4,
+      username: "ali_tarih",
+      name: "Ali Özkan",
+      avatar: "/placeholder.svg?height=40&width=40",
+    },
+    message: "seni takip etmeye başladı",
+    timestamp: "2024-01-19T20:30:00Z",
+    read: true,
+  },
+  {
+    id: 4,
+    type: "like",
+    user: {
+      id: 4,
+      username: "ali_tarih",
+      name: "Ali Özkan",
+      avatar: "/placeholder.svg?height=40&width=40",
+    },
+    message: "gönderini beğendi",
+    postId: 1,
+    timestamp: "2024-01-19T15:00:00Z",
+    read: true,
+  },
+]
