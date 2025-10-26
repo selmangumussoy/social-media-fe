@@ -215,3 +215,61 @@
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
+
+/* Listeler */
+.prose ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+}
+
+.prose ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+}
+
+/* Tablo stilleri */
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.prose table,
+.prose th,
+.prose td {
+  border: 1px solid var(--border);
+}
+
+.prose th,
+.prose td {
+  padding: 8px;
+  text-align: left;
+}
+.ProseMirror {
+  min-height: 100vh;
+  outline: none;
+  padding: 2rem;
+  background: white;
+  width: 100%;
+}
+
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.ProseMirror table,
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+
+.toolbar-btn {
+  @apply p-2 border border-primary rounded-full text-primary hover:bg-primary/10 transition;
+}
+
+.toolbar-btn.active {
+  @apply bg-primary text-white;
+}
