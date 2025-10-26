@@ -9,6 +9,7 @@ import { Table } from "@tiptap/extension-table"
 import { TableRow } from "@tiptap/extension-table-row"
 import { TableCell } from "@tiptap/extension-table-cell"
 import { TableHeader } from "@tiptap/extension-table-header"
+import TextAlign from "@tiptap/extension-text-align"   // 👈 önemli
 import {
     Bold, Italic, Underline as UnderlineIcon,
     AlignLeft, AlignCenter, AlignRight,
@@ -19,7 +20,7 @@ import {
 
 import { useRef } from "react"
 
-export default function BlogEditor() {
+export default function BlogEditor({ onChange }) {
     const fileInputRef = useRef(null)
 
     const editor = useEditor({
@@ -28,15 +29,19 @@ export default function BlogEditor() {
             Underline,
             Image,
             Youtube,
-            Table.configure({
-                resizable: true,
-            }),
+            Table.configure({ resizable: true }),
             TableRow,
             TableHeader,
             TableCell,
+            TextAlign.configure({ types: ["heading", "paragraph"] }), // 👈 align için
         ],
         content: "<p>Yazmaya başlayın...</p>",
         immediatelyRender: false,
+        onUpdate: ({ editor }) => {
+            const html = editor.getHTML()
+            const text = editor.getText()
+            if (onChange) onChange(html, text)  // parent’a hem html hem text gönder
+        },
     })
 
     if (!editor) return null
@@ -45,7 +50,7 @@ export default function BlogEditor() {
     const handleImageUpload = (event) => {
         const file = event.target.files?.[0]
         if (file) {
-            const imageUrl = URL.createObjectURL(file) // geçici URL
+            const imageUrl = URL.createObjectURL(file)
             editor.chain().focus().setImage({ src: imageUrl }).run()
         }
     }
@@ -54,21 +59,16 @@ export default function BlogEditor() {
         <div className="w-full h-screen flex flex-col bg-white">
             {/* Toolbar */}
             <div className="flex flex-wrap items-center gap-2 p-3 border-b border-border bg-muted">
-                {/* Bold */}
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleBold().run()}
                     isActive={editor.isActive("bold")}
                     icon={<Bold size={18} />}
                 />
-
-                {/* Italic */}
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleItalic().run()}
                     isActive={editor.isActive("italic")}
                     icon={<Italic size={18} />}
                 />
-
-                {/* Underline */}
                 <ToolbarButton
                     onClick={() => editor.chain().focus().toggleUnderline().run()}
                     isActive={editor.isActive("underline")}
@@ -131,7 +131,7 @@ export default function BlogEditor() {
                     className="hidden"
                 />
 
-                {/* Youtube */}
+                {/* YouTube */}
                 <ToolbarButton
                     onClick={() => {
                         const url = window.prompt("YouTube URL'si:")
@@ -142,12 +142,9 @@ export default function BlogEditor() {
 
                 {/* Table */}
                 <ToolbarButton
-                    onClick={() =>
-                        editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
-                    }
+                    onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
                     icon={<TableIcon size={18} />}
                 />
-                {/* Tabloya satır/kolon ekle/sil */}
                 <ToolbarButton
                     onClick={() => editor.chain().focus().addColumnAfter().run()}
                     icon={<Plus size={18} />}
