@@ -4,6 +4,7 @@ import { Providers } from "./providers"
 import { Navbar } from "@/components/layout/navbar"
 import { Sidebar } from "@/components/layout/sidebar"
 import { MobileNav } from "@/components/layout/mobile-nav"
+import AuthGuard from "@/components/AuthGuard"
 
 const poppins = Poppins({
   weight: ["300", "400", "500", "600", "700"],
@@ -17,23 +18,26 @@ const merriweather = Merriweather({
 
 export const metadata = {
   title: "Entelektüel - Kitap ve Düşünce Platformu",
-  description: "Bilimsel yazılar, kitap alıntıları ve düşünce yazılarının paylaşıldığı sosyal platform",
-    generator: 'v0.app'
+  description:
+      "Bilimsel yazılar, kitap alıntıları ve düşünce yazılarının paylaşıldığı sosyal platform",
+  generator: "v0.app",
 }
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="tr" suppressHydrationWarning>
+      <html lang="tr" suppressHydrationWarning>
       <body className={`${poppins.className} ${merriweather.variable}`}>
-        <Providers>
+      <Providers>
+        <AuthGuard>
           <Navbar />
           <div className="flex">
             <Sidebar />
             <main className="min-h-screen flex-1 pb-20 lg:pb-0">{children}</main>
           </div>
           <MobileNav />
-        </Providers>
+        </AuthGuard>
+      </Providers>
       </body>
-    </html>
+      </html>
   )
 }

@@ -14,18 +14,18 @@ const saveToken = (token) => {
 
 export async function login(username, password) {
     const loginPayload = {
-        username: username,
-        password: password,
+        username,
+        password,
     };
 
     try {
         const response = await BaseService({
             method: POST,
-            url: `${AUTH_URL}/login`, // Örn: /auth/login
+            url: `${AUTH_URL}/login`,
             data: loginPayload,
         });
 
-        const { token } = response.data;
+        const token = response?.data?.data?.token;
 
         if (token) {
             saveToken(token);
@@ -33,12 +33,16 @@ export async function login(username, password) {
             console.warn("Giriş başarılı ancak token yanıt içinde bulunamadı.");
         }
 
-        return response.data;
+        return {
+            token,
+            user: response?.data?.data?.user || null, // backend user döndürüyorsa buradan al
+        };
 
     } catch (error) {
         throw error;
     }
 }
+
 
 export function logout() {
     localStorage.removeItem('jwt_token');

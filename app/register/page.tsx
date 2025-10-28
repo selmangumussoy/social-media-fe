@@ -9,33 +9,30 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from 'next/link'
-import { BookOpen, Mail, Lock, User, FileText, Phone } from 'lucide-react'
+import { BookOpen, Lock, User, Phone } from 'lucide-react'
 import toast from "react-hot-toast"
 import { signUp } from "@/services/authService"
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
-    // 👈 Backend SignUpRequest modeline uygun alanlar
-    name: "", // name
-    surname: "", // 👈 Yeni alan (Backend'de surname)
-    email: "", // email
-    phoneNumber: "", // 👈 Yeni alan (Backend'de phoneNumber)
-    password: "", // password
+    fullName: "",
+    username: "",
+    phoneNumber: "",
+    password: "",
     confirmPassword: "",
-    // username ve bio arayüzde kalsa bile (şimdilik kaldırıyorum) backend'e gitmeyecek
   })
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const dispatch = useDispatch()
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     })
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
@@ -52,39 +49,30 @@ export default function RegisterPage() {
       return
     }
 
-    // 1. 📢 Backend SignUpRequest modeline uygun payload oluşturma
+    // Backend'e uygun payload
     const signUpPayload = {
       password: formData.password,
-      email: formData.email,
-      name: formData.name,
-      surname: formData.surname,
       phoneNumber: formData.phoneNumber,
+      fullName: formData.fullName,
+      username: formData.username,
     }
 
     try {
-      // 2. 🚀 Gerçek API çağrısı
-      const response = await signUp(signUpPayload) // signUp servis metodunu kullanıyoruz
+      const response = await signUp(signUpPayload)
 
-      // 3. ✅ Başarılı Durum: Token alındı ve LocalStorage'a kaydedildi (authService içinde yapıldı)
-      // Kullanıcıyı Redux'a kaydetme (Gerekiyorsa, bu alanlar token ile dönmeyebilir, login olduktan sonra profil çekilebilir)
-      // Ancak mevcut Redux akışına uyum sağlamak için basit bir kullanıcı objesi oluşturuyoruz:
-      const newUser = {
-        name: formData.name,
-        email: formData.email,
-        // Diğer alanları (username, bio) backend'den gelmediği için şimdilik boş/varsayılan bırakıyoruz
-        // Gerçek uygulamada, giriş yaptıktan sonra /profile gibi bir endpoint'ten kullanıcı bilgileri çekilir.
+      // Redux'a basit kullanıcı objesi
+      dispatch(setUser({
         id: "temp-id",
-        // JWT/Token bilgisi: response.token içerir
-      }
-
-      dispatch(setUser(newUser))
+        username: formData.username,
+        fullName: formData.fullName,
+        phoneNumber: formData.phoneNumber,
+      }))
 
       toast.success("Kayıt başarılı! Hoş geldiniz!")
-      router.push("/") // Ana sayfaya yönlendir
-    } catch (error) {
-      // 4. ❌ Hata Durumu
+      router.push("/")
+    } catch (error: any) {
       console.error("Kayıt Başarısız:", error);
-      const errorMessage = error.message || (error.email ? error.email[0] : "Kayıt sırasında bir hata oluştu.");
+      const errorMessage = error.message || "Kayıt sırasında bir hata oluştu.";
       toast.error(errorMessage);
     } finally {
       setIsLoading(false)
@@ -92,18 +80,16 @@ export default function RegisterPage() {
   }
 
   return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-purple-50 via-green-50 to-cream-50 p-4 dark:from-purple-950/20 dark:via-green-950/20 dark:to-stone-950">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-purple-50 via-green-50 to-cream-50 p-4">
         <div className="w-full max-w-md">
-          {/* Logo... (Aynı kaldı) */}
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-green-500 shadow-lg">
               <BookOpen className="h-8 w-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-foreground">Entelektüel</h1>
+            <h1 className="text-3xl font-bold">Entelektüel</h1>
             <p className="mt-2 text-sm text-muted-foreground">Düşünce dünyasına katılın</p>
           </div>
 
-          {/* Register Card */}
           <Card className="shadow-xl">
             <CardHeader>
               <CardTitle className="text-2xl">Kayıt Ol</CardTitle>
@@ -112,61 +98,43 @@ export default function RegisterPage() {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
 
-                {/* Ad (name) */}
+                {/* Full Name */}
                 <div className="space-y-2">
-                  <Label htmlFor="name">Ad</Label>
+                  <Label htmlFor="fullName">Ad Soyad</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                        id="name"
-                        name="name"
+                        id="fullName"
+                        name="fullName"
                         type="text"
-                        placeholder="Ahmet"
+                        placeholder="Ahmet Yılmaz"
                         className="pl-10"
-                        value={formData.name}
+                        value={formData.fullName}
                         onChange={handleChange}
                         required
                     />
                   </div>
                 </div>
 
-                {/* Soyad (surname) 👈 Yeni Alan */}
+                {/* Username */}
                 <div className="space-y-2">
-                  <Label htmlFor="surname">Soyad</Label>
+                  <Label htmlFor="username">Kullanıcı Adı</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                        id="surname"
-                        name="surname"
+                        id="username"
+                        name="username"
                         type="text"
-                        placeholder="Yılmaz"
+                        placeholder="kullanici123"
                         className="pl-10"
-                        value={formData.surname}
+                        value={formData.username}
                         onChange={handleChange}
                         required
                     />
                   </div>
                 </div>
 
-                {/* E-posta (email) */}
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-posta</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        placeholder="ornek@email.com"
-                        className="pl-10"
-                        value={formData.email}
-                        onChange={handleChange}
-                        required
-                    />
-                  </div>
-                </div>
-
-                {/* Telefon Numarası (phoneNumber) 👈 Yeni Alan */}
+                {/* Phone Number */}
                 <div className="space-y-2">
                   <Label htmlFor="phoneNumber">Telefon Numarası</Label>
                   <div className="relative">
@@ -184,7 +152,7 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                {/* Şifre (password) */}
+                {/* Password */}
                 <div className="space-y-2">
                   <Label htmlFor="password">Şifre</Label>
                   <div className="relative">
@@ -202,7 +170,7 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                {/* Şifre Tekrar (confirmPassword) */}
+                {/* Confirm Password */}
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Şifre Tekrar</Label>
                   <div className="relative">

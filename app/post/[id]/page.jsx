@@ -39,7 +39,7 @@ export default function PostDetailPage({ params }) {
     )
   }
 
-  const isLiked = post.likes.includes(currentUser?.id)
+  const isLiked = (post.likes || []).includes(currentUser?.id);
   const isSaved = savedPosts.includes(post.id)
 
   const handleLike = () => {
@@ -105,12 +105,22 @@ export default function PostDetailPage({ params }) {
                 {/* Header */}
                 <div className="flex items-start justify-between mb-6">
                   <div className="flex items-center gap-3">
-                    <Link href={`/profile/${post.author.username}`}>
-                      <Avatar className="h-12 w-12 ring-2 ring-border/20">
-                        <AvatarImage src={post.author.avatar || "/placeholder.svg"} alt={post.author.name} />
-                        <AvatarFallback>{post.author.name.charAt(0)}</AvatarFallback>
+                    <Link
+                        href={`/profile/${post.author?.username ?? "unknown"}`}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+
+                    <Avatar className="h-12 w-12 ring-2 ring-border/20">
+                        <AvatarImage
+                            src={post.author?.avatar || "/placeholder.svg"}
+                            alt={post.author?.name || "Anonim"}
+                        />
+                        <AvatarFallback>
+                          {post.author?.name?.charAt(0) ?? "?"}
+                        </AvatarFallback>
                       </Avatar>
                     </Link>
+
                     <div>
                       <Link
                           href={`/profile/${post.author.username}`}
