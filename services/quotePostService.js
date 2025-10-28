@@ -4,6 +4,7 @@ import { BaseService, GET, POST, PUT, DELETE } from "@/lib/BaseService"
 const QUOTE_POST_URL = "/api/quote-posts"
 
 
+
 export async function getAllQuotePosts() {
     try {
         const response = await BaseService({

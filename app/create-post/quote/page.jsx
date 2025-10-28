@@ -11,10 +11,10 @@ import { Badge } from "@/components/ui/badge"
 import { BookOpen, ImageIcon, X } from "lucide-react"
 import toast from "react-hot-toast"
 
-// 🟢 Servisler
+// 🧩 Servisler
 import { createQuotePost } from "@/services/quotePostService"
-import { createTag, searchTags } from "@/services/tagService"
 import { createPost } from "@/services/postService"
+import { createTag, searchTags } from "@/services/tagService"
 
 export default function QuotePostPage() {
     const router = useRouter()
@@ -34,12 +34,10 @@ export default function QuotePostPage() {
     const [tags, setTags] = useState([])
     const [loading, setLoading] = useState(false)
 
-    // 🟡 Input değişimi
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value })
     }
 
-    // 🟢 Etiket ekleme
     const handleAddTag = () => {
         if (tagInput.trim() && tags.length < 5) {
             const tagName = tagInput.trim().toLowerCase()
@@ -62,9 +60,10 @@ export default function QuotePostPage() {
 
         setLoading(true)
         try {
+            const userId = "12345" // 🔹 Örnek kullanıcı id (normalde auth'tan gelir)
             const tagIds = []
 
-            // 1️⃣ Etiketleri kontrol et (varsa al, yoksa oluştur)
+            // 🔸 1) Etiketleri oluştur veya bul
             for (const tagName of tags) {
                 try {
                     const existingTags = await searchTags(tagName)
@@ -84,7 +83,25 @@ export default function QuotePostPage() {
                 }
             }
 
-            // 2️⃣ QuotePost kaydı oluştur
+            // 🔹 2) Önce ana POST kaydını oluştur
+            const postPayload = {
+                type: "QUOTE_POST",
+                parentId: null,
+                userId,
+                content: formData.thought,
+                tagId: tagIds.length > 0 ? tagIds[0] : null,
+                likeCount: 0,
+                commentCount: 0,
+            }
+
+            const createdPost = await createPost(postPayload)
+            const postId = createdPost?.data?.id || createdPost?.id
+
+            if (!postId) {
+                throw new Error("Post kaydı oluşturulamadı!")
+            }
+
+            // 🔹 3) Post başarılıysa QuotePost kaydını oluştur
             const quotePayload = {
                 title: formData.title,
                 bookName: formData.bookName,
@@ -94,30 +111,13 @@ export default function QuotePostPage() {
                 totalPages: Number(formData.totalPages) || null,
                 thought: formData.thought,
                 image: formData.image || null,
-                tagIds: tagIds,
-                userId: "12345", // 🔹 oturum açmış kullanıcı ID’si (örnek)
+                postId, // 🔥 önemli kısım
             }
 
-            const createdQuote = await createQuotePost(quotePayload)
-
-            // 3️⃣ Quote başarılıysa POST tablosuna da kayıt at
-            if (createdQuote?.id) {
-                const postPayload = {
-                    type: "QUOTE_POST",
-                    parentId: null,
-                    userId: quotePayload.userId,
-                    content: formData.thought,
-                    tagId: tagIds.length > 0 ? tagIds[0] : null, // 🔹 ilk etiketi al
-                    likeCount: 0,
-                    commentCount: 0,
-                }
-
-                await createPost(postPayload)
-                console.log("Post kaydı da oluşturuldu ✅")
-            }
+            await createQuotePost(quotePayload)
 
             toast.success("Kitap alıntısı başarıyla paylaşıldı!")
-            router.push("/")
+            router.push("/feed")
         } catch (error) {
             console.error("Alıntı oluşturma hatası:", error)
             toast.error("Bir hata oluştu. Lütfen tekrar deneyin.")
