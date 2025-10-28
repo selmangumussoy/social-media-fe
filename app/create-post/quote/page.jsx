@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,13 +11,14 @@ import { Badge } from "@/components/ui/badge"
 import { BookOpen, ImageIcon, X } from "lucide-react"
 import toast from "react-hot-toast"
 
-// 🟢 Servisler
+// 🧩 Servisler
 import { createQuotePost } from "@/services/quotePostService"
-import { createTag, searchTags } from "@/services/tagService"
 import { createPost } from "@/services/postService"
+import { createTag, searchTags } from "@/services/tagService"
 
 export default function QuotePostPage() {
     const router = useRouter()
+    const previewRef = useRef(null)
 
     const [formData, setFormData] = useState({
         title: "",
@@ -34,12 +35,13 @@ export default function QuotePostPage() {
     const [tags, setTags] = useState([])
     const [loading, setLoading] = useState(false)
 
-    // 🟡 Input değişimi
+    // 🔔 yeni: önizleme görünürlüğü
+    const [showPreview, setShowPreview] = useState(false)
+
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value })
     }
 
-    // 🟢 Etiket ekleme
     const handleAddTag = () => {
         if (tagInput.trim() && tags.length < 5) {
             const tagName = tagInput.trim().toLowerCase()
@@ -52,6 +54,29 @@ export default function QuotePostPage() {
         setTags(tags.filter((tag) => tag !== tagToRemove))
     }
 
+    // 🔔 yeni: önizleme butonu
+    const handleTogglePreview = () => {
+        // basit doğrulama
+        if (!showPreview) {
+            if (!formData.bookName?.trim()) {
+                toast.error("Önizleme: Kitap adı zorunludur.")
+                return
+            }
+            if (!formData.thought?.trim()) {
+                toast.error("Önizleme: Alıntı metni zorunludur.")
+                return
+            }
+        }
+        setShowPreview((v) => !v)
+
+        // açıldıysa önizlemeye kaydır
+        setTimeout(() => {
+            if (previewRef.current) {
+                previewRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+        }, 0)
+    }
+
     const handleSubmit = async (e) => {
         e.preventDefault()
 
@@ -62,16 +87,16 @@ export default function QuotePostPage() {
 
         setLoading(true)
         try {
+            const userId = "12345" // örnek (auth'tan gelmeli)
             const tagIds = []
 
-            // 1️⃣ Etiketleri kontrol et (varsa al, yoksa oluştur)
+            // 1) Etiketleri oluştur/bul
             for (const tagName of tags) {
                 try {
                     const existingTags = await searchTags(tagName)
                     const found = existingTags.find(
                         (t) => t.name?.toLowerCase() === tagName.toLowerCase()
                     )
-
                     if (found) {
                         tagIds.push(found.id)
                     } else {
@@ -84,7 +109,21 @@ export default function QuotePostPage() {
                 }
             }
 
-            // 2️⃣ QuotePost kaydı oluştur
+            // 2) Post kaydı
+            const postPayload = {
+                type: "QUOTE_POST",
+                parentId: null,
+                userId,
+                content: formData.thought,
+                tagId: tagIds.length > 0 ? tagIds[0] : null,
+                likeCount: 0,
+                commentCount: 0,
+            }
+            const createdPost = await createPost(postPayload)
+            const postId = createdPost?.data?.id || createdPost?.id
+            if (!postId) throw new Error("Post kaydı oluşturulamadı!")
+
+            // 3) QuotePost kaydı
             const quotePayload = {
                 title: formData.title,
                 bookName: formData.bookName,
@@ -94,30 +133,12 @@ export default function QuotePostPage() {
                 totalPages: Number(formData.totalPages) || null,
                 thought: formData.thought,
                 image: formData.image || null,
-                tagIds: tagIds,
-                userId: "12345", // 🔹 oturum açmış kullanıcı ID’si (örnek)
+                postId,
             }
-
-            const createdQuote = await createQuotePost(quotePayload)
-
-            // 3️⃣ Quote başarılıysa POST tablosuna da kayıt at
-            if (createdQuote?.id) {
-                const postPayload = {
-                    type: "QUOTE_POST",
-                    parentId: null,
-                    userId: quotePayload.userId,
-                    content: formData.thought,
-                    tagId: tagIds.length > 0 ? tagIds[0] : null, // 🔹 ilk etiketi al
-                    likeCount: 0,
-                    commentCount: 0,
-                }
-
-                await createPost(postPayload)
-                console.log("Post kaydı da oluşturuldu ✅")
-            }
+            await createQuotePost(quotePayload)
 
             toast.success("Kitap alıntısı başarıyla paylaşıldı!")
-            router.push("/")
+            router.push("/feed")
         } catch (error) {
             console.error("Alıntı oluşturma hatası:", error)
             toast.error("Bir hata oluştu. Lütfen tekrar deneyin.")
@@ -306,22 +327,78 @@ export default function QuotePostPage() {
                             )}
                         </div>
 
-                        {/* Butonlar */}
-                        <div className="flex gap-3 pt-4">
-                            <Button type="submit" className="flex-1" disabled={loading}>
-                                {loading ? "Paylaşılıyor..." : "Paylaş"}
-                            </Button>
+                        {/* Aksiyonlar */}
+                        <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                            {/* 🔔 yeni: Önizleme butonu */}
                             <Button
                                 type="button"
-                                variant="outline"
-                                onClick={() => router.back()}
+                                variant={showPreview ? "outline" : "secondary"}
+                                onClick={handleTogglePreview}
+                                className="sm:flex-1"
                             >
+                                {showPreview ? "Önizlemeyi Kapat" : "Önizlemeyi Göster"}
+                            </Button>
+
+                            <Button type="submit" className="sm:flex-1" disabled={loading}>
+                                {loading ? "Paylaşılıyor..." : "Paylaş"}
+                            </Button>
+
+                            <Button type="button" variant="outline" onClick={() => router.back()}>
                                 İptal
                             </Button>
                         </div>
                     </form>
                 </CardContent>
             </Card>
+
+            {/* 🔔 yeni: Önizleme yalnızca butonla açılınca görünür */}
+            {showPreview && (formData.bookName || formData.thought) && (
+                <Card ref={previewRef} className="mt-6 border-border shadow-sm">
+                    <CardHeader>
+                        <CardTitle className="text-lg font-semibold">Önizleme</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        <div className="flex items-center gap-2">
+                            <Badge variant="default" className="gap-1">
+                                <BookOpen className="h-3 w-3" /> Alıntı
+                            </Badge>
+                        </div>
+
+                        {formData.title && <h3 className="text-xl font-bold">{formData.title}</h3>}
+
+                        {formData.bookName && (
+                            <h4 className="text-lg font-semibold">
+                                {formData.bookName}
+                                {formData.author && (
+                                    <span className="text-muted-foreground font-normal"> — {formData.author}</span>
+                                )}
+                            </h4>
+                        )}
+
+                        {formData.thought && (
+                            <blockquote className="italic text-lg leading-relaxed border-l-4 border-primary pl-3">
+                                {formData.thought}
+                            </blockquote>
+                        )}
+
+                        {tags.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {tags.map((tag) => (
+                                    <Badge key={tag} variant="outline">
+                                        #{tag}
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
+
+                        {formData.image && (
+                            <div className="overflow-hidden rounded-lg border mt-3">
+                                <img src={formData.image} alt="Preview" className="w-full h-auto object-cover" />
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
         </div>
     )
 }
