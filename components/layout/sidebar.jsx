@@ -20,13 +20,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { logout } from "@/store/slices/userSlice";
 import toast from "react-hot-toast";
-
+import { createPost } from "@/services/postService";
+import { createThoughtPost } from "@/services/thoughtPostService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-
-import { createThought } from "@/services/thoughtService";
 
 const menuItems = [
     { icon: Home, label: "Ana Sayfa", href: "/" },
@@ -100,15 +99,41 @@ export function Sidebar() {
     };
 
     const handlePublish = async () => {
-        if (!text.trim()) return toast.error("Bir şeyler yazmalısın.");
+        const text = (text ?? "").trim();
+        if (!text) return toast.error("Bir şeyler yazmalısın.");
+        if (text.length > 280) return toast.error("En fazla 280 karakter.");
+
         try {
-            await createThought({ content: text });
+            setIsSubmitting(true);
+
+            // 1) Ana Post
+            const post = await createPost({
+                type: "THOUGHT_POST",
+                content: text.slice(0, 80),
+                userId: currentUser?.id,     // ⬅️ backend JWT’den user bağlıyorsa bunu çıkar
+                likeCount: 0,
+                commentCount: 0,
+                // tagId: selectedTagId ?? null,
+            });
+
+            // 2) ThoughtPost detay
+            await createThoughtPost({
+                postId: post.id,
+                text,
+                visibility: "PUBLIC",
+            });
+
             toast.success("Düşünce paylaşıldı ✅");
             resetComposer();
             setOpenComposer(false);
+
+            // feed’i tazelemek istiyorsan burada tekrar fetch et
+            // const items = await getAllPosts(); setDbPosts(items);
         } catch (e) {
             console.error(e);
             toast.error("Gönderilemedi ❌");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
