@@ -1,61 +1,94 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react"
-import { useSelector } from "react-redux"
-import { PostCard } from "@/components/feed/post-card"
-import { FeedFilter } from "@/components/feed/feed-filter"
-import { RightSidebar } from "@/components/sidebar/right-sidebar"
-import { EmptyState } from "@/components/common/empty-state"
-import { BookOpen, Image as ImageIcon, Paperclip, Smile } from "lucide-react"
-import { createThought } from "@/services/thoughtService"
-import { getAllPosts } from "@/services/postService"
-import toast from "react-hot-toast"
+import { useEffect, useState, useMemo } from "react";
+import { useSelector } from "react-redux";
+import { PostCard } from "@/components/feed/post-card";
+import { FeedFilter } from "@/components/feed/feed-filter";
+import { RightSidebar } from "@/components/sidebar/right-sidebar";
+import { EmptyState } from "@/components/common/empty-state";
+import { BookOpen, Image as ImageIcon, Paperclip, Smile } from "lucide-react";
+import { getAllPosts } from "@/services/postService";
+import { createThought } from "@/services/thoughtPostService";
+import toast from "react-hot-toast";
+
+const MAX_LEN = 280;
 
 export default function HomePage() {
-  const reduxPosts = useSelector((state) => state.posts.posts)  // Redux içindekiler
-  const currentUser = useSelector((state) => state.user.currentUser)
+  const reduxPosts = useSelector((state) => state.posts.posts);
+  const currentUser = useSelector((state) => state.user.currentUser);
 
-  const [activeFilter, setActiveFilter] = useState("all")
-  const [content, setContent] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [dbPosts, setDbPosts] = useState([])   // 👈 backend’den gelenler
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [content, setContent] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dbPosts, setDbPosts] = useState([]);
 
-  // backend’den postları getir
   useEffect(() => {
     const fetchPosts = async () => {
-      const items = await getAllPosts()
-      setDbPosts(items)
-    }
-    fetchPosts()
-  }, [])
+      try {
+        const items = await getAllPosts();
+        setDbPosts(items ?? []);
+      } catch (e) {
+        console.error(e);
+        toast.error("Gönderiler alınamadı");
+      }
+    };
+    fetchPosts();
+  }, []);
 
-  // Redux + Backend birleşik liste
   const combinedPosts = useMemo(() => {
-    const merged = [...reduxPosts, ...dbPosts]   // 👈 ikisini birleştir
-    if (activeFilter === "all") return merged
-    return merged.filter((post) => post.type === activeFilter)
-  }, [reduxPosts, dbPosts, activeFilter])
+    const merged = [...(reduxPosts ?? []), ...(dbPosts ?? [])];
+    if (activeFilter === "all") return merged;
+    return merged.filter((post) => post.type === activeFilter);
+  }, [reduxPosts, dbPosts, activeFilter]);
+
+  const userId =
+      currentUser?.id ??
+      currentUser?.userId ??
+      null;
 
   const handlePublish = async () => {
-    if (!content.trim()) {
-      toast.error("Bir şeyler yazmalısın 🙂")
-      return
+    const trimmed = (content ?? "").trim();
+
+    if (!userId) {
+      // Kullanıcı yoksa uyarı ver ve geri dön
+      toast.error("Oturum bulunamadı. Lütfen giriş yapın.");
+      return;
     }
+    if (!trimmed) {
+      toast.error("Bir şeyler yazmalısın 🙂");
+      return;
+    }
+    if (trimmed.length > MAX_LEN) {
+      toast.error(`En fazla ${MAX_LEN} karakter yazabilirsin.`);
+      return;
+    }
+
     try {
-      setIsSubmitting(true)
-      await createThought({ content: content.trim(), visibility: "PUBLIC" })
-      toast.success("Gönderi paylaşıldı ✅")
-      setContent("")
+      setIsSubmitting(true);
+
+      await createThought({
+        text: trimmed,                  // ✅ doğru parametre adı
+        userId,          // ✅ userId geçiliyor
+        visibility: "PUBLIC",
+      });
+
+      toast.success("Gönderi paylaşıldı ✅");
+      setContent("");
+
       // yeni gönderi sonrası tekrar fetch
-      const items = await getAllPosts()
-      setDbPosts(items)
+      const items = await getAllPosts();
+      setDbPosts(items ?? []);
     } catch (e) {
-      console.error(e)
-      toast.error("Gönderi paylaşılamadı ❌")
+      console.error(e);
+      toast.error(
+          e?.message || "Gönderi paylaşılamadı ❌"
+      );
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
+
+  const overLimit = content.length > MAX_LEN;
 
   return (
       <div className="flex gap-6">
@@ -79,6 +112,7 @@ export default function HomePage() {
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Neler oluyor?"
                   rows={3}
+                  maxLength={MAX_LEN + 50} // kullanıcı deneyimi için biraz tolerans ama biz yine de guard koyduk
                   className="w-full resize-none bg-transparent p-3 text-sm outline-none placeholder:text-muted-foreground/80
                            focus:outline-none focus:ring-0 border-0"
               />
@@ -96,11 +130,13 @@ export default function HomePage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground">{content.length}/280</span>
+                  <span className={`text-xs ${overLimit ? "text-red-500" : "text-muted-foreground"}`}>
+                    {content.length}/{MAX_LEN}
+                  </span>
                     <button
                         type="button"
                         onClick={handlePublish}
-                        disabled={isSubmitting || !content.trim() || content.length > 280}
+                        disabled={isSubmitting || !content.trim() || overLimit}
                         className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60"
                     >
                       {isSubmitting ? "Yükleniyor..." : "Gönderi yayınla"}
@@ -118,7 +154,7 @@ export default function HomePage() {
 
           {/* Feed */}
           <div className="space-y-6">
-            {combinedPosts.length > 0 ? (
+            {combinedPosts?.length > 0 ? (
                 combinedPosts.map((post) => <PostCard key={post.id} post={post} />)
             ) : (
                 <EmptyState
@@ -132,5 +168,5 @@ export default function HomePage() {
 
         <RightSidebar />
       </div>
-  )
+  );
 }
