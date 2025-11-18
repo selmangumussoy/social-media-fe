@@ -93,14 +93,6 @@ export default function ProfilePage() {
 
               {profile.bio && <p className="leading-relaxed">{profile.bio}</p>}
 
-              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                {profile.birthDay && (
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      <span>{profile.birthDay} tarihinde katıldı</span>
-                    </div>
-                )}
-              </div>
             </div>
           </CardContent>
         </Card>

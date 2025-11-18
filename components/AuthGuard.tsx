@@ -9,7 +9,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
 
     // Login ve Register sayfaları guard dışında kalmalı
-    if (pathname === "/login" || pathname === "/register" || pathname === "/post") {
+    if (pathname === "/login" || pathname === "/register" || pathname === "/post" || pathname === "/profile") {
         return <>{children}</>
     }
 
