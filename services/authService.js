@@ -1,16 +1,13 @@
-
-import { BaseService, POST } from '@/lib/BaseService';
+import { BaseService, POST, GET } from '@/lib/BaseService';
 
 const AUTH_URL = '/auth';
-
+const USER_URL = '/users'; // Backend'deki User Controller yolu
 
 const saveToken = (token) => {
     if (token) {
         localStorage.setItem('jwt_token', token);
-        console.log("JWT başarıyla kaydedildi.");
     }
 };
-
 
 export async function login(username, password) {
     const loginPayload = {
@@ -24,31 +21,45 @@ export async function login(username, password) {
             url: `${AUTH_URL}/login`,
             data: loginPayload,
         });
-
         const token = response?.data?.data?.token;
 
         if (token) {
             saveToken(token);
-        } else {
-            console.warn("Giriş başarılı ancak token yanıt içinde bulunamadı.");
+
+            try {
+                const userResponse = await BaseService({
+                    method: GET,
+                    url: `${USER_URL}/me`, // Token header'da otomatik gidecek
+                });
+
+                const realUser = userResponse?.data?.data;
+
+                return {
+                    token,
+                    user: realUser,
+                };
+            } catch (userError) {
+                console.error("User fetch error inside login:", userError);
+                // User çekilemese bile token döndür (UI'da handle edilebilir)
+                return { token, user: null };
+            }
         }
 
         return {
-            token,
-            user: response?.data?.data?.user || null, // backend user döndürüyorsa buradan al
+            token: null,
+            user: null,
         };
 
     } catch (error) {
+        console.error("Login service error:", error);
         throw error;
     }
 }
-
 
 export function logout() {
     localStorage.removeItem('jwt_token');
     window.location.href = '/login';
 }
-
 
 export async function signUp(signupData) {
     try {

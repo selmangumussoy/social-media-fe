@@ -26,11 +26,19 @@ export async function getAllPosts() {
     }
 }
 
+export async function getPostsByUser(userId) {
+    try {
+        const response = await BaseService({
+            method: GET,
+            url: `${POST_URL}/user/${userId}`,
+        })
+        return response?.data?.data?.items || response?.data?.data || []
+    } catch (error) {
+        console.error("Kullanıcı postları getirme hatası:", error)
+        return []
+    }
+}
 
-/**
- * 🔍 Tek bir postu ID ile getir
- * (Backend: GET /api/posts/{id})
- */
 export async function getPostById(id) {
     try {
         const response = await BaseService({

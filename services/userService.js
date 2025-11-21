@@ -7,7 +7,7 @@ export async function getMe() {
     try {
         const response = await BaseService({
             method: GET,
-            url: `${USER_URL}`,
+            url: `${USER_URL}/me`,
         })
         return response?.data?.data || null
     } catch (error) {
