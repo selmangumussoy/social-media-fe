@@ -102,3 +102,24 @@ export async function deletePost(id) {
         return false
     }
 }
+export async function addComment(postId, commentText) {
+    try {
+        const token = localStorage.getItem('jwt_token'); // Token'ı cepten çıkar
+
+        const response = await BaseService({
+            method: POST,
+            url: COMMENT_URL,
+            data: {
+                postId: postId,
+                text: commentText
+            },
+            headers: {
+                'Authorization': `Bearer ${token}` // Pasaportu göster
+            }
+        });
+        return response?.data?.data || response?.data;
+    } catch (error) {
+        console.error("Yorum ekleme hatası:", error);
+        throw error;
+    }
+}

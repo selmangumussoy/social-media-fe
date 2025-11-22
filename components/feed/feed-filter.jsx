@@ -1,14 +1,16 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { BookOpen, FileText, TrendingUp } from "lucide-react"
+import { BookOpen, FileText, TrendingUp, } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function FeedFilter({ activeFilter, onFilterChange }) {
   const filters = [
     { id: "all", label: "Tümü", icon: TrendingUp },
-    { id: "quote", label: "Alıntılar", icon: BookOpen },
-    { id: "blog", label: "Blog Yazıları", icon: FileText },
+
+    { id: "QUOTE_POST", label: "Alıntılar", icon: BookOpen },
+
+    { id: "BLOG_POST", label: "Blog Yazıları", icon: FileText },
   ]
 
   return (
