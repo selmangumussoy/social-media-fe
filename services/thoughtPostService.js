@@ -23,6 +23,7 @@ export async function createThoughtPost(thoughtData) {
     }
 }
 
+
 /**
  * 🔍 Tüm thought kayıtlarını getir
  * (Backend: GET /api/thoughts)
