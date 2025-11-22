@@ -41,10 +41,7 @@ export async function getAllThoughtPosts() {
     }
 }
 
-/**
- * 📄 ID ile tek bir thought getir
- * (Backend: GET /api/thoughts/{id})
- */
+
 export async function getThoughtPostById(id) {
     try {
         const response = await BaseService({
