@@ -41,6 +41,7 @@ export async function createQuotePost(quoteData) {
             method: POST,
             url: QUOTE_POST_URL,
             data: {
+                postId: quoteData.postId,
                 title: quoteData.title || "",
                 bookName: quoteData.bookName,
                 author: quoteData.author || "",
@@ -48,9 +49,8 @@ export async function createQuotePost(quoteData) {
                 publisher: quoteData.publisher || "",
                 totalPages: quoteData.totalPages || null,
                 thought: quoteData.thought,
-                tagIds: quoteData.tagIds || [], // ✅ sadece ID dizisi gönder
-                //
-                },
+                tagIds: quoteData.tagIds || [],
+            },
         })
 
         return response?.data?.data || response?.data

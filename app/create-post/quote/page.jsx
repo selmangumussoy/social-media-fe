@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { useSelector } from "react-redux"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,9 +10,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { BookOpen, ImageIcon, X } from "lucide-react"
-import toast from "react-hot-toast"
+import { Toaster, toast } from "react-hot-toast"
 
-// 🧩 Servisler
+// 🧩 Gerçek Servis Importları
 import { createQuotePost } from "@/services/quotePostService"
 import { createPost } from "@/services/postService"
 import { createTag, searchTags } from "@/services/tagService"
@@ -19,6 +20,9 @@ import { createTag, searchTags } from "@/services/tagService"
 export default function QuotePostPage() {
     const router = useRouter()
     const previewRef = useRef(null)
+
+    // ✅ Kullanıcıyı Redux Store'dan çekiyoruz
+    const currentUser = useSelector((state) => state.user.currentUser)
 
     const [formData, setFormData] = useState({
         title: "",
@@ -35,7 +39,7 @@ export default function QuotePostPage() {
     const [tags, setTags] = useState([])
     const [loading, setLoading] = useState(false)
 
-    // 🔔 yeni: önizleme görünürlüğü
+    // Önizleme görünürlüğü
     const [showPreview, setShowPreview] = useState(false)
 
     const handleChange = (e) => {
@@ -54,9 +58,7 @@ export default function QuotePostPage() {
         setTags(tags.filter((tag) => tag !== tagToRemove))
     }
 
-    // 🔔 yeni: önizleme butonu
     const handleTogglePreview = () => {
-        // basit doğrulama
         if (!showPreview) {
             if (!formData.bookName?.trim()) {
                 toast.error("Önizleme: Kitap adı zorunludur.")
@@ -69,7 +71,6 @@ export default function QuotePostPage() {
         }
         setShowPreview((v) => !v)
 
-        // açıldıysa önizlemeye kaydır
         setTimeout(() => {
             if (previewRef.current) {
                 previewRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
@@ -77,8 +78,15 @@ export default function QuotePostPage() {
         }, 0)
     }
 
+    // ✅ GÜNCELLENMİŞ SUBMIT FONKSİYONU
     const handleSubmit = async (e) => {
         e.preventDefault()
+
+        // 1. Auth Kontrolü
+        if (!currentUser?.id) {
+            toast.error("Paylaşım yapmak için lütfen giriş yapın.")
+            return
+        }
 
         if (!formData.bookName || !formData.thought) {
             toast.error("Kitap adı ve alıntı metni zorunludur.")
@@ -87,10 +95,10 @@ export default function QuotePostPage() {
 
         setLoading(true)
         try {
-            const userId = "12345" // örnek (auth'tan gelmeli)
+            const userId = currentUser.id
             const tagIds = []
 
-            // 1) Etiketleri oluştur/bul
+            // A) Etiketleri Bul veya Oluştur
             for (const tagName of tags) {
                 try {
                     const existingTags = await searchTags(tagName)
@@ -105,26 +113,34 @@ export default function QuotePostPage() {
                         if (newId) tagIds.push(newId)
                     }
                 } catch (err) {
-                    console.warn(`Etiket '${tagName}' kaydedilemedi:`, err)
+                    console.warn(`Etiket '${tagName}' işlenirken hata:`, err)
                 }
             }
 
-            // 2) Post kaydı
+            // B) 1. ADIM: GENEL POST OLUŞTURMA
             const postPayload = {
-                type: "QUOTE_POST",
+                type: "QUOTE_POST", // Backend Enum ile uyumlu olmalı
                 parentId: null,
-                userId,
-                content: formData.thought,
-                tagId: tagIds.length > 0 ? tagIds[0] : null,
+                userId: userId,
+                content: formData.thought, // Ana akışta görünecek metin
+                tagId: tagIds.length > 0 ? tagIds[0] : null, // İlk etiketi ana post'a ver
+                title: formData.title || formData.bookName,
                 likeCount: 0,
                 commentCount: 0,
             }
-            const createdPost = await createPost(postPayload)
-            const postId = createdPost?.data?.id || createdPost?.id
-            if (!postId) throw new Error("Post kaydı oluşturulamadı!")
 
-            // 3) QuotePost kaydı
+            const createdPostResponse = await createPost(postPayload)
+
+            // ID'yi güvenli bir şekilde al
+            const createdPostId = createdPostResponse?.data?.id || createdPostResponse?.id
+
+            if (!createdPostId) {
+                throw new Error("Post oluşturuldu ancak ID alınamadı.")
+            }
+
+            // C) 2. ADIM: QUOTE POST DETAYINI OLUŞTURMA
             const quotePayload = {
+                postId: createdPostId, // 🔥 Oluşturduğumuz Post ID'sini buraya bağlıyoruz
                 title: formData.title,
                 bookName: formData.bookName,
                 author: formData.author,
@@ -133,14 +149,16 @@ export default function QuotePostPage() {
                 totalPages: Number(formData.totalPages) || null,
                 thought: formData.thought,
                 image: formData.image || null,
-                postId,
+                // tagIds dizisini backend QuotePost servisi ayrıca kaydediyorsa buraya ekle:
+                tagIds: tagIds
             }
+
             await createQuotePost(quotePayload)
 
             toast.success("Kitap alıntısı başarıyla paylaşıldı!")
             router.push("/feed")
         } catch (error) {
-            console.error("Alıntı oluşturma hatası:", error)
+            console.error("Alıntı paylaşma hatası:", error)
             toast.error("Bir hata oluştu. Lütfen tekrar deneyin.")
         } finally {
             setLoading(false)
@@ -149,6 +167,7 @@ export default function QuotePostPage() {
 
     return (
         <div className="mx-auto max-w-2xl p-4 sm:p-6">
+            <Toaster position="top-center" />
             <Card className="shadow-lg border-border">
                 <CardHeader className="pb-2 text-center">
                     <CardTitle className="flex justify-center items-center gap-2 text-xl sm:text-2xl font-semibold">
@@ -329,7 +348,6 @@ export default function QuotePostPage() {
 
                         {/* Aksiyonlar */}
                         <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                            {/* 🔔 yeni: Önizleme butonu */}
                             <Button
                                 type="button"
                                 variant={showPreview ? "outline" : "secondary"}
@@ -351,7 +369,7 @@ export default function QuotePostPage() {
                 </CardContent>
             </Card>
 
-            {/* 🔔 yeni: Önizleme yalnızca butonla açılınca görünür */}
+            {/* Önizleme Alanı */}
             {showPreview && (formData.bookName || formData.thought) && (
                 <Card ref={previewRef} className="mt-6 border-border shadow-sm">
                     <CardHeader>
