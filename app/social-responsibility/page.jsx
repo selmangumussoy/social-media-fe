@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link" // 👈 1. EKLEME: Link import edildi
 import {
     BookOpen,
     Lightbulb,
@@ -9,18 +10,27 @@ import {
     Heart,
     Calendar,
     ArrowLeft,
-    Loader2
+    Loader2,
+    Gift
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getSocialDashboard } from "@/services/socialService"
 import toast from "react-hot-toast"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 
 export default function SocialResponsibilityPage() {
     const router = useRouter()
     const [data, setData] = useState(null)
     const [loading, setLoading] = useState(true)
+    const [isContributeOpen, setIsContributeOpen] = useState(false)
 
     useEffect(() => {
         async function fetchData() {
@@ -134,7 +144,10 @@ export default function SocialResponsibilityPage() {
                                 </div>
                             </div>
 
-                            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-8 py-6 rounded-xl shadow-lg shadow-emerald-200 transition-transform hover:scale-105 active:scale-95">
+                            <Button
+                                onClick={() => setIsContributeOpen(true)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-8 py-6 rounded-xl shadow-lg shadow-emerald-200 transition-transform hover:scale-105 active:scale-95"
+                            >
                                 Katkı Sağla
                             </Button>
                         </div>
@@ -196,11 +209,11 @@ export default function SocialResponsibilityPage() {
                                 bgClass="bg-emerald-50"
                             />
 
-                            {/* 4. Öneri */}
+                            {/* 4. Bağış (Öneri yerine Bağış olarak güncellendi) */}
                             <StatCard
-                                icon={Heart}
-                                count={theme.suggestionCount}
-                                label="Öneri"
+                                icon={Gift}
+                                count={theme.suggestionCount} // Backend'den gelen sayı (suggestionCount) burada kullanılıyor
+                                label="Bağış"
                                 colorClass="text-pink-600"
                                 bgClass="bg-pink-50"
                             />
@@ -220,6 +233,49 @@ export default function SocialResponsibilityPage() {
                         </div>
                     </TabsContent>
                 </Tabs>
+
+                {/* 👇 2. EKLEME: KATKI SAĞLAMA MODALI (Sadece Öneri ve Bağış) */}
+                <Dialog open={isContributeOpen} onOpenChange={setIsContributeOpen}>
+                    <DialogContent className="sm:max-w-lg">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-bold text-center">Destek Ol</DialogTitle>
+                            <DialogDescription className="text-center">
+                                Topluluğumuzu geliştirmek için öneride bulunabilir veya bağış yaparak destek olabilirsin.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="grid grid-cols-2 gap-4 mt-4">
+
+                            {/* 1. Öneri Seçeneği */}
+                            <Link href="/suggestion" className="w-full" onClick={() => setIsContributeOpen(false)}>
+                                <div className="h-full border rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all hover:border-purple-500 hover:bg-purple-50 hover:shadow-md group text-center">
+                                    <div className="p-4 bg-purple-100 rounded-full group-hover:bg-purple-200 transition-colors">
+                                        <Heart className="w-8 h-8 text-purple-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold text-gray-900">Öneri Yap</h3>
+                                        <p className="text-xs text-gray-500 mt-1">Fikirlerini paylaş</p>
+                                    </div>
+                                </div>
+                            </Link>
+
+                            {/* 2. Bağış Seçeneği */}
+                            <Link href="/donate" className="w-full" onClick={() => setIsContributeOpen(false)}>
+                                <div className="h-full border rounded-xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all hover:border-pink-500 hover:bg-pink-50 hover:shadow-md group text-center">
+                                    <div className="p-4 bg-pink-100 rounded-full group-hover:bg-pink-200 transition-colors">
+                                        <Gift className="w-8 h-8 text-pink-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold text-gray-900">Bağış Yap</h3>
+                                        <p className="text-xs text-gray-500 mt-1">Projeye destek ol</p>
+                                    </div>
+                                </div>
+                            </Link>
+
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
             </div>
         </div>
     )
