@@ -15,6 +15,7 @@ import {
     Plus,
     X,
     Smile,
+    Heart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ const menuItems = [
     { icon: Bookmark, label: "Kaydedilenler", href: "/saved" },
     { icon: User, label: "Profil", href: "/profile" },
     { icon: Settings, label: "Ayarlar", href: "/settings" },
+    { icon: Heart, label: "Sosyal Sorumluluk", href: "/social-responsibility" },
 ];
 
 // Kısa bir duygu seti; istersen çoğaltabilirsin

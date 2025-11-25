@@ -147,7 +147,9 @@ export default function BlogPage() {
             await createBlogPost({
                 postId: createdPost.id, // İlişkiyi kuruyoruz
                 blogContent: htmlContent, // Biçimlendirilmiş, resimli tam içerik
-                coverImage: null
+                coverImage: null,
+                title: title,
+                tags: tags,
             });
 
             toast.success("Blog yazısı başarıyla yayınlandı! 🎉");

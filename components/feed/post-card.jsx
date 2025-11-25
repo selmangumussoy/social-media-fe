@@ -6,7 +6,7 @@ import { toggleLike, toggleSave } from "@/store/slices/postSlice"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, Quote, Edit, Trash2, Check, X } from "lucide-react"
+import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, Quote, Edit, Trash2, Check, X, ExternalLink } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { tr } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -20,13 +20,19 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 
+const QuoteIcon = ({ className }) => (
+    <svg fill="currentColor" viewBox="0 0 24 24" className={className} xmlns="http://www.w3.org/2000/svg">
+        <path d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C19.5693 16 20.017 15.5523 20.017 15V9C20.017 8.44772 19.5693 8 19.017 8H15.017C14.4647 8 14.017 8.44772 14.017 9V11C14.017 11.5523 13.5693 12 13.017 12H12.017V5H22.017V15C22.017 18.3137 19.3307 21 16.017 21H14.017ZM5.0166 21L5.0166 18C5.0166 16.8954 5.91203 16 7.0166 16H10.0166C10.5689 16 11.0166 15.5523 11.0166 15V9C11.0166 8.44772 10.5689 8 10.0166 8H6.0166C5.46432 8 5.0166 8.44772 5.0166 9V11C5.0166 11.5523 4.56889 12 4.0166 12H3.0166V5H13.0166V15C13.0166 18.3137 10.3303 21 7.0166 21H5.0166Z" />
+    </svg>
+)
+
 export function PostCard({ post }) {
     const dispatch = useDispatch()
     const router = useRouter()
     const currentUser = useSelector((state) => state.user.currentUser)
     const savedPosts = useSelector((state) => state.posts.savedPosts)
 
-    // --- STATE'LER (Yerinde düzenleme için) ---
+    // --- STATE'LER ---
     const [isEditing, setIsEditing] = useState(false)
     const [editContent, setEditContent] = useState(post?.content || "")
     const [isUpdating, setIsUpdating] = useState(false)
@@ -39,14 +45,18 @@ export function PostCard({ post }) {
     const isMyPost = currentUser?.id === post.userId || currentUser?.userId === post.userId;
 
     // --- VERİ AYIKLAMA ---
-    const bookName = post.bookName || post.quotePost?.bookName || post.bookTitle;
-    const authorName = post.authorName || post.bookAuthor || post.quotePost?.author;
-    const quotePage = post.quotePage || post.quotePost?.quotePage;
-    const quoteContent = post.quotePost?.thought || post.thought || post.content;
-    const displayTitle = post.title && post.title !== bookName ? post.title : null;
+    const qp = post.quotePost || {};
 
-    // 🛠️ ETİKET DÜZELTMESİ: Varsayılan değerleri kaldırdık.
-    // Eğer post.tags boşsa, dizi boş kalır ve ekrana hiçbir şey basılmaz.
+    // Başlık
+    const displayTitle = post.title || qp.title || null;
+
+    // Kitap Bilgileri
+    const bookName = qp.bookName || post.bookName || post.bookTitle || "Bilinmeyen Kitap";
+    const authorName = qp.author || post.author || post.authorName || "Yazar Bilinmiyor";
+    const quotePage = qp.quotePage || post.quotePage || qp.page || null;
+    const quoteContent = qp.thought || post.thought || post.content || "";
+    const publisher = qp.publisher || post.publisher || null;
+    const postImage = qp.image || post.image || null;
     const postTags = post.tags || [];
 
     let timeAgo = "";
@@ -65,24 +75,20 @@ export function PostCard({ post }) {
         catch (error) { toast.error("Hata oluştu"); }
     }
 
-    // 🛠️ DÜZENLEME YÖNETİMİ (Yönlendirme vs. Inline)
+    // --- DÜZENLEME YÖNLENDİRMESİ ---
     const handleEditClick = () => {
         if (post.type === "QUOTE_POST") {
-            // Alıntı -> Sayfaya git
             router.push(`/create-post/quote/edit/${post.id}`);
         } else if (post.type === "BLOG_POST") {
-            // Blog -> Sayfaya git
             router.push(`/create-post/blog/edit/${post.id}`);
         } else {
-            // Düşünce Postu -> Olduğu yerde (Inline) aç
             setIsEditing(true);
         }
     }
 
-    // 🛠️ YERİNDE GÜNCELLEME (Sadece Düşünce Postları İçin)
+    // --- INLINE GÜNCELLEME (Düşünce Postları) ---
     const handleInlineUpdate = async () => {
         if (!editContent.trim()) return toast.error("İçerik boş olamaz");
-
         try {
             setIsUpdating(true);
             await updatePost(post.id, {
@@ -90,7 +96,6 @@ export function PostCard({ post }) {
                 title: post.title,
                 type: post.type
             });
-
             toast.success("Güncellendi ✅");
             setIsEditing(false);
             window.location.reload();
@@ -125,7 +130,6 @@ export function PostCard({ post }) {
                         </div>
                     </div>
 
-                    {/* Menü: Sadece düzenleme modu kapalıyken görünür */}
                     {isMyPost && !isEditing && (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -148,7 +152,36 @@ export function PostCard({ post }) {
 
             <CardContent className="px-5 py-2 space-y-4">
 
-                {/* --- 1. QUOTE POST GÖRÜNÜMÜ --- */}
+
+                {post.type === "BLOG_POST" && (
+                    <div className="flex flex-col w-full">
+                        {/* Başlık Alanı: İkon + Başlık + Alt Çizgi */}
+                        <div className="flex items-center gap-2 border-b border-gray-100 pb-3 mb-4">
+                            <span className="text-2xl">📖</span>
+                            <h2 className="text-xl md:text-2xl font-bold text-gray-900">
+                                {displayTitle || "Başlık Yok"}
+                            </h2>
+                        </div>
+
+                        {/* İçerik Alanı */}
+                        <div className="text-gray-700 text-lg leading-relaxed whitespace-pre-wrap mb-4 font-normal">
+                            {post.content}
+                        </div>
+
+                        {/* Etiketler (Çizginin altında) */}
+                        {postTags.length > 0 && (
+                            <div className="border-t border-gray-100 pt-3 flex flex-wrap gap-2">
+                                {postTags.map((tag, i) => (
+                                    <span key={i} className="text-sm text-gray-500 font-medium">#{tag}</span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ========================================================= */}
+                {/* 2. QUOTE POST (KİTAP ALINTISI) - AYNI KALDI (DOKUNULMADI) */}
+                {/* ========================================================= */}
                 {post.type === "QUOTE_POST" && (
                     <div className="mt-1">
                         {displayTitle && <h3 className="text-lg font-bold text-gray-900 mb-2 px-1">{displayTitle}</h3>}
@@ -173,10 +206,11 @@ export function PostCard({ post }) {
                     </div>
                 )}
 
-                {/* --- 2. DİĞER POST TİPLERİ (BLOG & DÜŞÜNCE) --- */}
-                {post.type !== "QUOTE_POST" && (
+                {/* ========================================================= */}
+                {/* 3. DİĞER POST TİPLERİ (NORMAL DÜŞÜNCE) - AYNI KALDI       */}
+                {/* ========================================================= */}
+                {post.type !== "QUOTE_POST" && post.type !== "BLOG_POST" && (
                     <>
-                        {/* DÜZENLEME MODU */}
                         {isEditing ? (
                             <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
                                 <Textarea
@@ -194,26 +228,22 @@ export function PostCard({ post }) {
                                 </div>
                             </div>
                         ) : (
-                            // NORMAL GÖRÜNÜM
                             <p className="text-gray-800 whitespace-pre-wrap leading-relaxed text-lg">
                                 {post.content}
                             </p>
                         )}
-                    </>
-                )}
 
-                {/* --- ETİKETLER (SADECE VARSA GÖSTER) --- */}
-                {/* isEditing kapalıyken VE postTags doluysa gösterir */}
-                {!isEditing && postTags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-2">
-                        {postTags.map((tag, i) => (
-                            <Badge key={i} variant="secondary" className="px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 font-medium text-xs border-transparent">#{tag}</Badge>
-                        ))}
-                    </div>
+                        {!isEditing && postTags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-2">
+                                {postTags.map((tag, i) => (
+                                    <Badge key={i} variant="secondary" className="px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 font-medium text-xs border-transparent">#{tag}</Badge>
+                                ))}
+                            </div>
+                        )}
+                    </>
                 )}
             </CardContent>
 
-            {/* Footer (Düzenleme modunda gizlenebilir, şu an gizlemedim, isteğe bağlı) */}
             {!isEditing && (
                 <CardFooter className="px-5 py-4 border-t border-gray-50 flex items-center justify-between text-gray-500">
                     <div className="flex items-center gap-6">
