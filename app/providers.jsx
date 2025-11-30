@@ -1,12 +1,11 @@
 "use client";
 
 import { Provider, useDispatch } from "react-redux";
-import { store } from "@/store/store";
-import { Toaster } from "react-hot-toast";
 import { useEffect } from "react";
 import { getMe } from "@/services/userService";
 import { setUser } from "@/store/slices/userSlice";
-
+import { store, persistor } from "@/store/store"
+import { Toaster } from "react-hot-toast"
 // --------------------
 // INIT USER COMPONENT
 // --------------------

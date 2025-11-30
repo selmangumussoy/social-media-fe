@@ -26,11 +26,19 @@ export async function getAllPosts() {
     }
 }
 
+export async function getPostsByUser(userId) {
+    try {
+        const response = await BaseService({
+            method: GET,
+            url: `${POST_URL}/user/${userId}`,
+        })
+        return response?.data?.data?.items || response?.data?.data || []
+    } catch (error) {
+        console.error("Kullanıcı postları getirme hatası:", error)
+        return []
+    }
+}
 
-/**
- * 🔍 Tek bir postu ID ile getir
- * (Backend: GET /api/posts/{id})
- */
 export async function getPostById(id) {
     try {
         const response = await BaseService({
@@ -92,5 +100,26 @@ export async function deletePost(id) {
     } catch (error) {
         console.error("Post silme hatası:", error)
         return false
+    }
+}
+export async function addComment(postId, commentText) {
+    try {
+        const token = localStorage.getItem('jwt_token'); // Token'ı cepten çıkar
+
+        const response = await BaseService({
+            method: POST,
+            url: COMMENT_URL,
+            data: {
+                postId: postId,
+                text: commentText
+            },
+            headers: {
+                'Authorization': `Bearer ${token}` // Pasaportu göster
+            }
+        });
+        return response?.data?.data || response?.data;
+    } catch (error) {
+        console.error("Yorum ekleme hatası:", error);
+        throw error;
     }
 }

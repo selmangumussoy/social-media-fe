@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import {
     Home,
     Compass,
@@ -15,6 +15,7 @@ import {
     Plus,
     X,
     Smile,
+    Heart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ const menuItems = [
     { icon: Bookmark, label: "Kaydedilenler", href: "/saved" },
     { icon: User, label: "Profil", href: "/profile" },
     { icon: Settings, label: "Ayarlar", href: "/settings" },
+    { icon: Heart, label: "Sosyal Sorumluluk", href: "/social-responsibility" },
 ];
 
 // Kısa bir duygu seti; istersen çoğaltabilirsin
@@ -42,9 +44,11 @@ export function Sidebar() {
     const pathname = usePathname();
     const dispatch = useDispatch();
     const router = useRouter();
+    const currentUser = useSelector((state) => state.user.currentUser);
 
     const [openTypeModal, setOpenTypeModal] = useState(false);
     const [openComposer, setOpenComposer] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const MAX = 280;
     const [text, setText] = useState("");
@@ -98,9 +102,17 @@ export function Sidebar() {
     };
 
     const handlePublish = async () => {
-        const text = (text ?? "").trim();
-        if (!text) return toast.error("Bir şeyler yazmalısın.");
-        if (text.length > 280) return toast.error("En fazla 280 karakter.");
+        const trimmedText = (text ?? "").trim();
+        console.log("Publishing thought...", { trimmedText, currentUser });
+
+        if (!trimmedText) return toast.error("Bir şeyler yazmalısın.");
+        if (trimmedText.length > 280) return toast.error("En fazla 280 karakter.");
+
+        const userId = currentUser?.id ?? currentUser?.userId;
+        if (!userId) {
+            console.error("User ID missing!", currentUser);
+            return toast.error("Kullanıcı oturumu bulunamadı.");
+        }
 
         try {
             setIsSubmitting(true);
@@ -108,8 +120,8 @@ export function Sidebar() {
             // 1) Ana Post
             const post = await createPost({
                 type: "THOUGHT_POST",
-                content: text.slice(0, 80),
-                userId: currentUser?.id,     // ⬅️ backend JWT’den user bağlıyorsa bunu çıkar
+                content: trimmedText.slice(0, 80),
+                userId: userId,
                 likeCount: 0,
                 commentCount: 0,
                 // tagId: selectedTagId ?? null,
@@ -118,8 +130,8 @@ export function Sidebar() {
             // 2) ThoughtPost detay
             await createThoughtPost({
                 postId: post.id,
-                text,
-                visibility: "PUBLIC",
+                content: trimmedText,
+                // feeling: "...", // İsterseniz buraya duygu ekleyebilirsiniz
             });
 
             toast.success("Düşünce paylaşıldı ✅");
@@ -268,8 +280,8 @@ export function Sidebar() {
                             </div>
 
                             <span className={cn("text-sm", remaining < 0 ? "text-red-500" : "text-muted-foreground")}>
-                {Math.max(0, remaining)}/{MAX}
-              </span>
+                                {Math.max(0, remaining)}/{MAX}
+                            </span>
                         </div>
 
                         <div className="space-y-1 text-xs text-muted-foreground">
