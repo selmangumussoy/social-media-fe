@@ -28,3 +28,16 @@ export async function getMeProfile() {
         return null
     }
 }
+
+export async function getAllUser() {
+    try {
+        const response = await BaseService({
+            method: GET,
+            url: `${USER_URL}`,
+        })
+        return response?.data?.data || null
+    } catch (error) {
+        console.error("Profile detayını getirme hatası:", error)
+        return null
+    }
+}

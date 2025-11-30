@@ -7,13 +7,13 @@ import { MobileNav } from "@/components/layout/mobile-nav"
 import AuthGuard from "@/components/AuthGuard"
 
 const poppins = Poppins({
-  weight: ["300", "400", "500", "600", "700"],
-  subsets: ["latin"],
+    weight: ["300", "400", "500", "600", "700"],
+    subsets: ["latin"],
 })
 const merriweather = Merriweather({
-  weight: ["300", "400", "700"],
-  subsets: ["latin"],
-  variable: "--font-serif",
+    weight: ["300", "400", "700"],
+    subsets: ["latin"],
+    variable: "--font-serif",
 })
 
 export const metadata = {

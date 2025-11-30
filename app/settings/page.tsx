@@ -251,7 +251,7 @@ export default function SettingsPage() {
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="name">Ad Soyad</Label>
+                      <Label htmlFor="name">Tam İsim</Label>
                       <Input id="name" name="name" value={formData.name} onChange={handleChange} required />
                     </div>
 

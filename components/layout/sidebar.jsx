@@ -19,10 +19,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { logout } from "@/store/slices/userSlice";
+import { logout as authLogout } from "@/services/authService";
+import { logout as reduxLogout } from "@/store/slices/userSlice";
 import toast from "react-hot-toast";
 import { createPost } from "@/services/postService";
-import { createThoughtPost } from "@/services/thoughtPostService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -64,10 +64,15 @@ export function Sidebar() {
     if (isAuthPage) return null;
 
     const handleLogout = () => {
-        dispatch(logout());
+        // 1) Redux'tan kullanıcıyı sil
+        dispatch(reduxLogout());
+        // 2) localStorage'daki token ve current_user'ı sil
+        authLogout();
+        // 3) Bildirim
         toast.success("Çıkış yapıldı");
         router.push("/login");
     };
+
 
     const handleChooseThought = () => {
         setOpenTypeModal(false);

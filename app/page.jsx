@@ -6,24 +6,21 @@ import { PostCard } from "@/components/feed/post-card";
 import { FeedFilter } from "@/components/feed/feed-filter";
 import { RightSidebar } from "@/components/sidebar/right-sidebar";
 import { EmptyState } from "@/components/common/empty-state";
-import { BookOpen, Image as ImageIcon, Paperclip, Smile, Loader2 } from "lucide-react";
+import { Image as ImageIcon, Paperclip, Smile, Loader2 } from "lucide-react";
 import { getAllPosts, createPost } from "@/services/postService";
 import { createThoughtPost } from "@/services/thoughtPostService";
-import { createBlogPost } from "@/services/blogPostService";
 import toast from "react-hot-toast";
 
 const MAX_LEN = 280;
 
 export default function HomePage() {
+  const reduxPosts = useSelector((state) => state.posts.posts);
   const currentUser = useSelector((state) => state.user.currentUser);
 
-  // --- STATE'LER ---
   const [activeFilter, setActiveFilter] = useState("all");
   const [content, setContent] = useState("");
   const [feeling, setFeeling] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Veritabanı verileri
   const [dbPosts, setDbPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,11 +50,11 @@ export default function HomePage() {
 
   const userId = currentUser?.id || currentUser?.userId;
 
-  // --- PAYLAŞIM FONKSİYONU ---
   const handlePublish = async () => {
     const trimmed = (content ?? "").trim();
 
     if (!userId) {
+      // Kullanıcı yoksa uyarı ver ve geri dön
       toast.error("Oturum bulunamadı. Lütfen giriş yapın.");
       return;
     }
@@ -93,7 +90,7 @@ export default function HomePage() {
       setContent("");
       setFeeling("");
 
-      // Listeyi güncelle
+      // yeni gönderi sonrası tekrar fetch
       const items = await getAllPosts();
       setDbPosts(items || []);
 
