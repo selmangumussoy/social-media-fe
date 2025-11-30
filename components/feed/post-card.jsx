@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useDispatch, useSelector } from "react-redux"
-import { useRouter, usePathname } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation" // usePathname burada önemli
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { tr } from "date-fns/locale"
@@ -64,7 +64,7 @@ const renderContentWithHashtags = (text) => {
 export function PostCard({ post }) {
     const dispatch = useDispatch()
     const router = useRouter()
-    const pathname = usePathname()
+    const pathname = usePathname() // Mevcut sayfa adresini alır (örn: /feed veya /profile/berk)
 
     const currentUser = useSelector((state) => state.user.currentUser)
 
@@ -86,7 +86,13 @@ export function PostCard({ post }) {
     const avatarUrl = post.author?.avatar || "/placeholder.svg"
 
     const isMyPost = currentUser?.id === post.userId || currentUser?.userId === post.userId
-    const showMenu = isMyPost && !isEditing;
+
+    // 🔥 DÜZELTME BURADA YAPILDI 🔥
+    // Menü sadece:
+    // 1. Post benimse (isMyPost)
+    // 2. Edit modunda değilsem (!isEditing)
+    // 3. VE ŞU AN PROFİL SAYFASINDAYSAM (pathname.startsWith("/profile")) gözüksün.
+    const showMenu = isMyPost && !isEditing && pathname.startsWith("/profile");
 
     // Zaman Formatı
     let timeAgo = ""
@@ -265,6 +271,7 @@ export function PostCard({ post }) {
                         </div>
                     </div>
 
+                    {/* Sadece Profil Sayfasında ve Kendi Postuysa Göster */}
                     {showMenu && (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
