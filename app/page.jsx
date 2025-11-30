@@ -6,12 +6,9 @@ import { PostCard } from "@/components/feed/post-card";
 import { FeedFilter } from "@/components/feed/feed-filter";
 import { RightSidebar } from "@/components/sidebar/right-sidebar";
 import { EmptyState } from "@/components/common/empty-state";
-import { BookOpen, Image as ImageIcon, Paperclip, Smile, Loader2 } from "lucide-react";
+import { Image as ImageIcon, Paperclip, Smile, Loader2 } from "lucide-react";
 import { getAllPosts, createPost } from "@/services/postService";
 import { createThoughtPost } from "@/services/thoughtPostService";
-import { createBlogPost } from "@/services/blogPostService";
-import { BookOpen, Image as ImageIcon, Paperclip, Smile } from "lucide-react";
-import { getAllPosts } from "@/services/postService";
 import toast from "react-hot-toast";
 
 const MAX_LEN = 280;
