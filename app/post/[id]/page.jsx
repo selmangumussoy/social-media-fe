@@ -90,11 +90,11 @@ export default function PostDetailPage() {
     const pageNo = detail?.quotePage || detail?.quotePost?.quotePage;
 
     // Video URL
-    const videoUrl = detail?.video || post.video || post.videoUrl;
-
+    const videoUrl = detail?.video || post.video || post.videoUrl || post.media;
 
     // ====================================================================================
     // 🟠 SENARYO 1: QUOTE POST (ALINTI)
+    // Yorumlar: Sayfa akışında (Dinamik Yükseklik)
     // ====================================================================================
     if (post.type === "QUOTE_POST") {
         return (
@@ -117,9 +117,10 @@ export default function PostDetailPage() {
                                 <PostActions isLiked={isLiked} isSaved={isSaved} likeCount={post.likeCount} handleLike={handleLike} handleSave={handleSave} />
                             </Card>
 
+                            {/* 👇 Burası Sabit Değil, İçerik Kadar Uzar 👇 */}
                             <div className="mt-8">
                                 <h3 className="font-bold text-lg text-gray-900 mb-4">Yanıtlar ({post.commentCount})</h3>
-                                <CommentSection comments={comments} currentUser={currentUser} />
+                                <CommentSectionDynamic comments={comments} currentUser={currentUser} />
                             </div>
                         </div>
 
@@ -144,11 +145,11 @@ export default function PostDetailPage() {
 
     // ====================================================================================
     // 🟢 SENARYO 2: COMPLEX BLOG POST (Split Layout)
+    // Yorumlar: Sticky Sağ Panel (Kendi içinde scroll olur)
     // ====================================================================================
 
     const hasImage = detail?.image || (detail?.blogContent && detail.blogContent.includes("<img")) || (post.content && post.content.includes("http"));
     const isLongContent = (post.content?.length > 500) || (detail?.blogContent?.length > 800);
-    // Video varsa da blog tasarımına zorluyoruz (Geniş ekran)
     const useSplitLayout = post.type === "BLOG_POST" && (hasImage || isLongContent || videoUrl);
 
     if (useSplitLayout) {
@@ -168,7 +169,6 @@ export default function PostDetailPage() {
                                     {detail?.blogContent ? <div dangerouslySetInnerHTML={{ __html: detail.blogContent }} /> : <p className="whitespace-pre-wrap">{post.content}</p>}
                                 </div>
 
-                                {/* Video Player */}
                                 {videoUrl && (
                                     <div className="mb-8 rounded-xl overflow-hidden bg-black shadow-sm">
                                         <video controls className="w-full max-h-[500px] mx-auto">
@@ -183,6 +183,7 @@ export default function PostDetailPage() {
                             </Card>
                         </div>
 
+                        {/* 👇 Burası Sabit (Sticky) Panel - Kendi İçinde Scroll Olur 👇 */}
                         <div className="lg:col-span-4 relative">
                             <div className="sticky top-6">
                                 <Card className="flex flex-col border border-gray-200 shadow-sm rounded-2xl bg-white overflow-hidden max-h-[calc(100vh-80px)]">
@@ -202,8 +203,8 @@ export default function PostDetailPage() {
 
 
     // ====================================================================================
-    // 🔵 SENARYO 3: THOUGHT POST (DÜŞÜNCE) & KISA BLOG
-    // ✅ BURAYA VİDEO GERİ EKLENDİ ✅
+    // 🔵 SENARYO 3: THOUGHT POST & KISA BLOG
+    // Yorumlar: Sayfa akışında (Dinamik Yükseklik)
     // ====================================================================================
     return (
         <div className="min-h-screen bg-[#F9F9F9] py-8 px-4">
@@ -215,15 +216,14 @@ export default function PostDetailPage() {
                 <Card className="border border-gray-200 shadow-sm rounded-2xl bg-white overflow-hidden p-8 mb-8">
                     <PostHeader username={username} fullName={fullName} avatarUrl={avatarUrl} timeAgo={timeAgo} isFollowing={isFollowing} handleFollow={handleFollow} currentUserId={currentUser?.id} postUserId={post.userId} />
 
-                    {/* Metin İçeriği */}
                     <div className="text-xl sm:text-2xl text-gray-800 leading-relaxed mb-6 font-medium whitespace-pre-wrap">
                         {post.content}
                     </div>
 
-                    {/* 🔥 Video Oynatıcı (Kısa postlar için de aktif) 🔥 */}
+                    {/* Video Varsa Göster */}
                     {videoUrl && (
                         <div className="mb-6 mt-4 rounded-xl overflow-hidden bg-black shadow-sm border border-gray-100">
-                            <video controls className="w-full max-h-[500px] mx-auto">
+                            <video controls className="w-full max-h-[500px] mx-auto" key={videoUrl}>
                                 <source src={videoUrl} type="video/mp4" />
                                 Tarayıcınız video etiketini desteklemiyor.
                             </video>
@@ -233,9 +233,9 @@ export default function PostDetailPage() {
                     <PostActions isLiked={isLiked} isSaved={isSaved} likeCount={post.likeCount} handleLike={handleLike} handleSave={handleSave} />
                 </Card>
 
+                {/* 👇 Burası Sabit Değil, İçerik Kadar Uzar 👇 */}
                 <div className="mb-4"><h3 className="font-bold text-lg text-gray-900">Yanıtlar ({post.commentCount})</h3></div>
-
-                <CommentSection comments={comments} currentUser={currentUser} />
+                <CommentSectionDynamic comments={comments} currentUser={currentUser} />
             </div>
         </div>
     );
@@ -286,32 +286,38 @@ function PostActions({ isLiked, isSaved, likeCount, handleLike, handleSave }) {
     )
 }
 
-function CommentSection({ comments, currentUser }) {
+// 🔥 DİNAMİK YORUM ALANI (Scroll yok, sayfa uzar) 🔥
+function CommentSectionDynamic({ comments, currentUser }) {
     return (
-        <>
-            <Card className="p-4 border border-gray-200 shadow-sm rounded-2xl bg-white mb-6">
-                <Textarea placeholder="Düşüncelerini paylaş..." className="border-none resize-none focus-visible:ring-0 min-h-[80px] text-base bg-transparent p-2" />
+        <div className="space-y-6">
+            {/* Input Kartı (Küçük ve Bağımsız) */}
+            <Card className="p-4 border border-gray-200 shadow-sm rounded-2xl bg-white">
+                <Textarea placeholder="Düşüncelerini paylaş..." className="border-none resize-none focus-visible:ring-0 min-h-[60px] text-base bg-transparent p-1" />
                 <div className="flex justify-end mt-2 pt-2 border-t border-gray-100">
                     <Button className="bg-[#343a40] hover:bg-black text-white h-8 text-xs px-5 rounded-md font-medium">Yanıtla</Button>
                 </div>
             </Card>
+
+            {/* Yorumlar Listesi (Div içinde, Card değil) */}
             <div className="space-y-4">
                 {comments.length > 0 ? (
                     comments.map((comment) => (
                         <CommentItem key={comment.id} user={comment.user.fullName} time={formatDistanceToNow(new Date(comment.createdAt), { locale: tr })} text={comment.content} avatar={comment.user.avatar} />
                     ))
                 ) : (
-                    <p className="text-gray-500 text-sm text-center py-4">İlk yorumu sen yap.</p>
+                    <div className="text-center py-6">
+                        <p className="text-gray-400 text-sm">İlk yorumu sen yap.</p>
+                    </div>
                 )}
             </div>
-        </>
+        </div>
     )
 }
 
 function CommentItem({ user, time, text, avatar }) {
     return (
         <div className="flex gap-3 items-start group">
-            <Avatar className="h-8 w-8 mt-1 border border-white shadow-sm">
+            <Avatar className="h-9 w-9 mt-1 border border-white shadow-sm">
                 <AvatarImage src={avatar} />
                 <AvatarFallback>{user ? user.charAt(0) : "?"}</AvatarFallback>
             </Avatar>
@@ -330,6 +336,7 @@ function CommentItem({ user, time, text, avatar }) {
     )
 }
 
+// Sticky Blog Panelindeki Input
 function CommentInput({ avatar }) {
     return (
         <div className="flex gap-2 items-end bg-gray-50 p-2 rounded-xl border border-gray-200 focus-within:ring-1 focus-within:ring-gray-300 transition-all">
