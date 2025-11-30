@@ -39,6 +39,24 @@ import {
 
 import { cn } from "@/lib/utils"
 
+// İçerikteki #etiket'leri biraz öne çıkarmak için basit helper
+const renderContentWithHashtags = (text) => {
+  if (!text) return null
+
+  const parts = text.split(/(#\w+)/g)
+
+  return parts.map((part, index) => {
+    if (/^#\w+$/.test(part)) {
+      return (
+          <span key={index} className="font-medium text-blue-600">
+          {part}
+        </span>
+      )
+    }
+    return <span key={index}>{part}</span>
+  })
+}
+
 export function PostCard({ post }) {
   const dispatch = useDispatch()
   const router = useRouter()
@@ -215,6 +233,8 @@ export function PostCard({ post }) {
     }
   }
 
+  const hasTags = Array.isArray(post.tags) && post.tags.length > 0
+
   return (
       <Card className="mb-6 overflow-hidden rounded-2xl border-border/30 bg-white shadow-sm transition-all hover:shadow-md">
         <CardHeader className="px-5 pb-2 pt-5">
@@ -292,15 +312,21 @@ export function PostCard({ post }) {
                       )}
 
                       <p className="text-[15px] leading-relaxed text-gray-700 line-clamp-3">
-                        {post.content}
+                        {renderContentWithHashtags(post.content)}
                       </p>
 
                       <div className="flex gap-2 pt-2">
-                        <Badge variant="outline" className="gap-1 border-gray-200 py-1 px-2 text-xs font-normal text-gray-500">
+                        <Badge
+                            variant="outline"
+                            className="gap-1 border-gray-200 py-1 px-2 text-xs font-normal text-gray-500"
+                        >
                           <Sparkles className="h-3 w-3" /> AI Analizi
                         </Badge>
 
-                        <Badge variant="outline" className="gap-1 border-gray-200 py-1 px-2 text-xs font-normal text-gray-500">
+                        <Badge
+                            variant="outline"
+                            className="gap-1 border-gray-200 py-1 px-2 text-xs font-normal text-gray-500"
+                        >
                           <Languages className="h-3 w-3" /> Çevir
                         </Badge>
                       </div>
@@ -315,6 +341,21 @@ export function PostCard({ post }) {
                     <p className="whitespace-pre-wrap leading-relaxed text-gray-800">
                       {post.content}
                     </p>
+                )}
+
+                {/* 👇 Backend'in döndürdüğü hashtag listesi (PostResponse.tags) */}
+                {hasTags && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {post.tags.map((tag) => (
+                          <Badge
+                              key={tag}
+                              variant="outline"
+                              className="border-blue-200 bg-blue-50 text-xs font-medium text-blue-700"
+                          >
+                            #{tag}
+                          </Badge>
+                      ))}
+                    </div>
                 )}
               </>
           )}

@@ -3,6 +3,7 @@
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,9 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { BookOpen, ImageIcon, X } from "lucide-react"
-import { Toaster, toast } from "react-hot-toast"
+import { toast } from "react-hot-toast"
 
-// 🧩 Gerçek Servis Importları
 import { createQuotePost } from "@/services/quotePostService"
 import { createPost } from "@/services/postService"
 import { createTag, searchTags } from "@/services/tagService"
@@ -20,8 +20,6 @@ import { createTag, searchTags } from "@/services/tagService"
 export default function QuotePostPage() {
     const router = useRouter()
     const previewRef = useRef(null)
-
-    // ✅ Kullanıcıyı Redux Store'dan çekiyoruz
     const currentUser = useSelector((state) => state.user.currentUser)
 
     const [formData, setFormData] = useState({
@@ -38,8 +36,6 @@ export default function QuotePostPage() {
     const [tagInput, setTagInput] = useState("")
     const [tags, setTags] = useState([])
     const [loading, setLoading] = useState(false)
-
-    // Önizleme görünürlüğü
     const [showPreview, setShowPreview] = useState(false)
 
     const handleChange = (e) => {
@@ -58,89 +54,81 @@ export default function QuotePostPage() {
         setTags(tags.filter((tag) => tag !== tagToRemove))
     }
 
-    const handleTogglePreview = () => {
+    const togglePreview = () => {
         if (!showPreview) {
-            if (!formData.bookName?.trim()) {
-                toast.error("Önizleme: Kitap adı zorunludur.")
+            if (!formData.bookName.trim()) {
+                toast.error("Kitap adı zorunludur")
                 return
             }
-            if (!formData.thought?.trim()) {
-                toast.error("Önizleme: Alıntı metni zorunludur.")
+            if (!formData.thought.trim()) {
+                toast.error("Alıntı zorunludur")
                 return
             }
         }
-        setShowPreview((v) => !v)
-
-        setTimeout(() => {
-            if (previewRef.current) {
-                previewRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
-            }
-        }, 0)
+        setShowPreview(!showPreview)
     }
 
-    // ✅ GÜNCELLENMİŞ SUBMIT FONKSİYONU
     const handleSubmit = async (e) => {
         e.preventDefault()
 
-        // 1. Auth Kontrolü
         if (!currentUser?.id) {
-            toast.error("Paylaşım yapmak için lütfen giriş yapın.")
+            toast.error("Giriş yapmalısınız")
             return
         }
 
         if (!formData.bookName || !formData.thought) {
-            toast.error("Kitap adı ve alıntı metni zorunludur.")
+            toast.error("Kitap adı ve alıntı zorunludur")
             return
         }
 
-        setLoading(true)
         try {
-            const userId = currentUser.id
-            const tagIds = []
+            setLoading(true)
 
-            // A) Etiketleri Bul veya Oluştur
+            // 1. Tag ID'lerini Çözümleme
+            const tagIds = []
             for (const tagName of tags) {
                 try {
-                    const existingTags = await searchTags(tagName)
-                    const found = existingTags.find(
-                        (t) => t.name?.toLowerCase() === tagName.toLowerCase()
-                    )
+                    const existing = await searchTags(tagName)
+                    // Backend response yapısına göre data içinde array olabilir, kontrol et
+                    const items = Array.isArray(existing) ? existing : (existing?.data || [])
+                    const found = items.find((t) => t.name.toLowerCase() === tagName.toLowerCase())
+
                     if (found) {
                         tagIds.push(found.id)
                     } else {
                         const newTag = await createTag({ name: tagName })
                         const newId = newTag?.data?.id || newTag?.id
-                        if (newId) tagIds.push(newId)
+                        if(newId) tagIds.push(newId)
                     }
                 } catch (err) {
-                    console.warn(`Etiket '${tagName}' işlenirken hata:`, err)
+                    console.error("Tag hatası:", err)
                 }
             }
 
-            // B) 1. ADIM: GENEL POST OLUŞTURMA
+            // 2. Ana Post Payload'ı (BURASI HATALIYDI, DÜZELTİLDİ)
             const postPayload = {
-                type: "QUOTE_POST", // Backend Enum ile uyumlu olmalı
+                type: "QUOTE_POST",
                 parentId: null,
-                userId: userId,
-                content: formData.thought, // Ana akışta görünecek metin
-                tagId: tagIds.length > 0 ? tagIds[0] : null, // İlk etiketi ana post'a ver
+                userId: currentUser.id,
+                content: formData.thought,
+                // Eski yapı için tekil ID (gerekirse kalsın)
+                tagId: tagIds.length > 0 ? tagIds[0] : null,
+                // 🔥 KRİTİK DÜZELTME: Backend List<String> tagIds bekliyor!
+                tagIds: tagIds,
                 title: formData.title || formData.bookName,
                 likeCount: 0,
                 commentCount: 0,
             }
 
+            // 3. Post Oluşturma
             const createdPostResponse = await createPost(postPayload)
+            const createdPostId = createdPostResponse?.id || createdPostResponse?.data?.id
 
-            // ID'yi güvenli bir şekilde al
-            const createdPostId = createdPostResponse?.data?.id || createdPostResponse?.id
+            if (!createdPostId) throw new Error("Post oluşturulamadı ID dönmedi")
 
-            if (!createdPostId) {
-                throw new Error("Post oluşturuldu ancak ID alınamadı.")
-            }
-
-            // C) 2. ADIM: QUOTE POST DETAYINI OLUŞTURMA
+            // 4. Quote Detayını Oluşturma
             const quotePayload = {
-                postId: createdPostId, // 🔥 Oluşturduğumuz Post ID'sini buraya bağlıyoruz
+                postId: createdPostId,
                 title: formData.title,
                 bookName: formData.bookName,
                 author: formData.author,
@@ -149,30 +137,28 @@ export default function QuotePostPage() {
                 totalPages: Number(formData.totalPages) || null,
                 thought: formData.thought,
                 image: formData.image || null,
-                // tagIds dizisini backend QuotePost servisi ayrıca kaydediyorsa buraya ekle:
-                tagIds: tagIds
+                tagIds, // Burası Quote tablosuna kaydediyorsa kalsın, ama asıl işi yukarıdaki postPayload yapar
             }
 
             await createQuotePost(quotePayload)
 
-            toast.success("Kitap alıntısı başarıyla paylaşıldı!")
-            router.push("/feed")
+            toast.success("Alıntı başarıyla paylaşıldı!")
+            router.push("/")
         } catch (error) {
-            console.error("Alıntı paylaşma hatası:", error)
-            toast.error("Bir hata oluştu. Lütfen tekrar deneyin.")
+            console.error(error)
+            toast.error("Bir hata oluştu: " + error.message)
         } finally {
             setLoading(false)
         }
     }
 
+    // ... Render kısmı (return) aynı kalacak ...
     return (
-        <div className="mx-auto max-w-2xl p-4 sm:p-6">
-            <Toaster position="top-center" />
-            <Card className="shadow-lg border-border">
-                <CardHeader className="pb-2 text-center">
-                    <CardTitle className="flex justify-center items-center gap-2 text-xl sm:text-2xl font-semibold">
-                        <BookOpen className="h-6 w-6 text-primary" />
-                        Kitap Alıntısı Paylaş
+        <div className="mx-auto max-w-2xl p-6">
+            <Card className="shadow">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-xl font-semibold">
+                        <BookOpen className="h-6 w-6" /> Kitap Alıntısı Paylaş
                     </CardTitle>
                 </CardHeader>
 
@@ -180,184 +166,126 @@ export default function QuotePostPage() {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Başlık */}
                         <div className="space-y-2">
-                            <Label htmlFor="title">Başlık</Label>
+                            <Label>Başlık</Label>
                             <Input
-                                id="title"
                                 name="title"
-                                placeholder="Alıntıya kısa bir başlık verin (opsiyonel)"
                                 value={formData.title}
                                 onChange={handleChange}
+                                placeholder="Alıntı başlığı (opsiyonel)"
                             />
                         </div>
 
-                        {/* Kitap Bilgileri */}
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        {/* Kitap */}
+                        <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="bookName">Kitap Adı *</Label>
+                                <Label>Kitap Adı *</Label>
                                 <Input
-                                    id="bookName"
                                     name="bookName"
-                                    placeholder="Örn: Suç ve Ceza"
                                     value={formData.bookName}
                                     onChange={handleChange}
                                     required
                                 />
                             </div>
+
                             <div className="space-y-2">
-                                <Label htmlFor="author">Yazar</Label>
-                                <Input
-                                    id="author"
-                                    name="author"
-                                    placeholder="Örn: Dostoyevski"
-                                    value={formData.author}
-                                    onChange={handleChange}
-                                />
+                                <Label>Yazar</Label>
+                                <Input name="author" value={formData.author} onChange={handleChange} />
                             </div>
                         </div>
 
-                        {/* Yayın Bilgileri */}
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        {/* Sayfa Bilgileri */}
+                        <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="publisher">Yayınevi</Label>
+                                <Label>Alıntı Sayfası</Label>
                                 <Input
-                                    id="publisher"
-                                    name="publisher"
-                                    placeholder="Örn: Yapı Kredi Yayınları"
-                                    value={formData.publisher}
+                                    name="quotePage"
+                                    type="number"
+                                    value={formData.quotePage}
                                     onChange={handleChange}
                                 />
                             </div>
-                            <div className="flex gap-2">
-                                <div className="flex-1 space-y-2">
-                                    <Label htmlFor="quotePage">Alıntı Sayfası</Label>
-                                    <Input
-                                        id="quotePage"
-                                        name="quotePage"
-                                        type="number"
-                                        placeholder="Örn: 123"
-                                        value={formData.quotePage}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-                                <div className="flex-1 space-y-2">
-                                    <Label htmlFor="totalPages">Toplam Sayfa</Label>
-                                    <Input
-                                        id="totalPages"
-                                        name="totalPages"
-                                        type="number"
-                                        placeholder="Örn: 480"
-                                        value={formData.totalPages}
-                                        onChange={handleChange}
-                                    />
-                                </div>
+
+                            <div className="space-y-2">
+                                <Label>Toplam Sayfa</Label>
+                                <Input
+                                    name="totalPages"
+                                    type="number"
+                                    value={formData.totalPages}
+                                    onChange={handleChange}
+                                />
                             </div>
                         </div>
 
                         {/* Alıntı */}
                         <div className="space-y-2">
-                            <Label htmlFor="thought">Alıntı *</Label>
+                            <Label>Alıntı *</Label>
                             <Textarea
-                                id="thought"
                                 name="thought"
-                                placeholder="Alıntıyı buraya yazın..."
-                                className="min-h-40 resize-none"
                                 value={formData.thought}
                                 onChange={handleChange}
+                                className="min-h-[120px]"
                                 required
                             />
-                            <p className="text-xs text-muted-foreground text-right">
-                                {formData.thought.length} karakter
-                            </p>
                         </div>
 
-                        {/* Görsel URL */}
+                        {/* Görsel */}
                         <div className="space-y-2">
-                            <Label htmlFor="image">Görsel URL (Opsiyonel)</Label>
-                            <div className="flex gap-2">
-                                <div className="relative flex-1">
-                                    <ImageIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                    <Input
-                                        id="image"
-                                        name="image"
-                                        type="url"
-                                        placeholder="https://example.com/image.jpg"
-                                        className="pl-10"
-                                        value={formData.image}
-                                        onChange={handleChange}
-                                    />
-                                </div>
+                            <Label>Görsel URL</Label>
+                            <div className="relative">
+                                <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" />
+                                <Input
+                                    name="image"
+                                    value={formData.image}
+                                    onChange={handleChange}
+                                    placeholder="https://..."
+                                    className="pl-10"
+                                />
                             </div>
-                            {formData.image && (
-                                <div className="relative aspect-video w-full overflow-hidden rounded-lg border">
-                                    <img
-                                        src={formData.image || "/placeholder.svg"}
-                                        alt="Preview"
-                                        className="h-full w-full object-cover"
-                                    />
-                                </div>
-                            )}
                         </div>
 
                         {/* Etiketler */}
                         <div className="space-y-2">
-                            <Label htmlFor="tags">Etiketler (Maks. 5)</Label>
+                            <Label>Etiketler</Label>
+
                             <div className="flex gap-2">
                                 <Input
-                                    id="tags"
-                                    placeholder="Etiket ekle (örn: felsefe)"
                                     value={tagInput}
                                     onChange={(e) => setTagInput(e.target.value)}
-                                    onKeyPress={(e) => {
-                                        if (e.key === "Enter") {
-                                            e.preventDefault()
-                                            handleAddTag()
-                                        }
-                                    }}
-                                    disabled={tags.length >= 5}
+                                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddTag())}
+                                    placeholder="Etiket ekle..."
                                 />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={handleAddTag}
-                                    disabled={tags.length >= 5}
-                                >
+                                <Button type="button" variant="outline" onClick={handleAddTag}>
                                     Ekle
                                 </Button>
                             </div>
-                            {tags.length > 0 && (
-                                <div className="flex flex-wrap gap-2">
-                                    {tags.map((tag) => (
-                                        <Badge
-                                            key={tag}
-                                            variant="secondary"
-                                            className="gap-1 text-sm px-3 py-1"
+
+                            <div className="flex flex-wrap gap-2">
+                                {tags.map((tag) => (
+                                    <Badge
+                                        key={tag}
+                                        variant="outline"
+                                        className="flex items-center gap-1 px-2 py-1"
+                                    >
+                                        #{tag}
+                                        <button
+                                            type="button"
+                                            className="text-red-500 ml-1"
+                                            onClick={() => handleRemoveTag(tag)}
                                         >
-                                            #{tag}
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveTag(tag)}
-                                                className="ml-1 hover:text-destructive"
-                                            >
-                                                <X className="h-3 w-3" />
-                                            </button>
-                                        </Badge>
-                                    ))}
-                                </div>
-                            )}
+                                            <X size={12} />
+                                        </button>
+                                    </Badge>
+                                ))}
+                            </div>
                         </div>
 
-                        {/* Aksiyonlar */}
-                        <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                            <Button
-                                type="button"
-                                variant={showPreview ? "outline" : "secondary"}
-                                onClick={handleTogglePreview}
-                                className="sm:flex-1"
-                            >
+                        {/* Actions */}
+                        <div className="flex gap-3 pt-4">
+                            <Button type="button" variant="secondary" onClick={togglePreview}>
                                 {showPreview ? "Önizlemeyi Kapat" : "Önizlemeyi Göster"}
                             </Button>
 
-                            <Button type="submit" className="sm:flex-1" disabled={loading}>
+                            <Button type="submit" disabled={loading} className="flex-1">
                                 {loading ? "Paylaşılıyor..." : "Paylaş"}
                             </Button>
 
@@ -369,35 +297,30 @@ export default function QuotePostPage() {
                 </CardContent>
             </Card>
 
-            {/* Önizleme Alanı */}
-            {showPreview && (formData.bookName || formData.thought) && (
-                <Card ref={previewRef} className="mt-6 border-border shadow-sm">
+            {/* Önizleme */}
+            {showPreview && (
+                <Card ref={previewRef} className="mt-6 shadow">
                     <CardHeader>
-                        <CardTitle className="text-lg font-semibold">Önizleme</CardTitle>
+                        <CardTitle>Önizleme</CardTitle>
                     </CardHeader>
+
                     <CardContent className="space-y-3">
-                        <div className="flex items-center gap-2">
-                            <Badge variant="default" className="gap-1">
-                                <BookOpen className="h-3 w-3" /> Alıntı
-                            </Badge>
-                        </div>
+                        <Badge variant="default" className="gap-1">
+                            <BookOpen className="w-3 h-3" /> Alıntı
+                        </Badge>
 
                         {formData.title && <h3 className="text-xl font-bold">{formData.title}</h3>}
 
                         {formData.bookName && (
-                            <h4 className="text-lg font-semibold">
+                            <p className="text-gray-700 text-lg font-semibold">
                                 {formData.bookName}
-                                {formData.author && (
-                                    <span className="text-muted-foreground font-normal"> — {formData.author}</span>
-                                )}
-                            </h4>
+                                {formData.author && <span className="text-gray-500"> — {formData.author}</span>}
+                            </p>
                         )}
 
-                        {formData.thought && (
-                            <blockquote className="italic text-lg leading-relaxed border-l-4 border-primary pl-3">
-                                {formData.thought}
-                            </blockquote>
-                        )}
+                        <blockquote className="border-l-4 pl-3 italic text-gray-800">
+                            {formData.thought}
+                        </blockquote>
 
                         {tags.length > 0 && (
                             <div className="flex flex-wrap gap-2">
@@ -410,8 +333,8 @@ export default function QuotePostPage() {
                         )}
 
                         {formData.image && (
-                            <div className="overflow-hidden rounded-lg border mt-3">
-                                <img src={formData.image} alt="Preview" className="w-full h-auto object-cover" />
+                            <div className="rounded overflow-hidden border mt-3">
+                                <img src={formData.image} className="w-full object-cover" alt="Preview" />
                             </div>
                         )}
                     </CardContent>
