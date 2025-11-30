@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
-import { useRouter, usePathname } from "next/navigation" // usePathname burada önemli
+import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { tr } from "date-fns/locale"
@@ -17,8 +17,6 @@ import {
     MoreHorizontal,
     Edit,
     Trash2,
-    Sparkles,
-    Languages,
     BookOpen,
     ArrowRight,
     Quote,
@@ -40,7 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 // Services & Store
-import { toggleLike, toggleSave } from "@/store/slices/postSlice"
+import { toggleLike } from "@/store/slices/postSlice"
 import { deletePost, updatePost } from "@/services/postService"
 import { savePost, unsavePost, getSavedPostsByUser } from "@/services/savedPostService"
 import { cn } from "@/lib/utils"
@@ -61,10 +59,11 @@ const renderContentWithHashtags = (text) => {
     })
 }
 
-export function PostCard({ post }) {
+// 🔥 isSavedInitial prop'u (Performans için önemli)
+export function PostCard({ post, isSavedInitial = false }) {
     const dispatch = useDispatch()
     const router = useRouter()
-    const pathname = usePathname() // Mevcut sayfa adresini alır (örn: /feed veya /profile/berk)
+    const pathname = usePathname()
 
     const currentUser = useSelector((state) => state.user.currentUser)
 
@@ -73,8 +72,8 @@ export function PostCard({ post }) {
     const [editContent, setEditContent] = useState(post?.content || "")
     const [isUpdating, setIsUpdating] = useState(false)
 
-    // Kaydetme State'leri
-    const [isSaved, setIsSaved] = useState(false)
+    // --- KAYDETME STATE'LERİ ---
+    const [isSaved, setIsSaved] = useState(isSavedInitial)
     const [savedPostId, setSavedPostId] = useState(null)
     const [saveLoading, setSaveLoading] = useState(false)
 
@@ -87,11 +86,7 @@ export function PostCard({ post }) {
 
     const isMyPost = currentUser?.id === post.userId || currentUser?.userId === post.userId
 
-    // 🔥 DÜZELTME BURADA YAPILDI 🔥
-    // Menü sadece:
-    // 1. Post benimse (isMyPost)
-    // 2. Edit modunda değilsem (!isEditing)
-    // 3. VE ŞU AN PROFİL SAYFASINDAYSAM (pathname.startsWith("/profile")) gözüksün.
+    // Menü Mantığı
     const showMenu = isMyPost && !isEditing && pathname.startsWith("/profile");
 
     // Zaman Formatı
@@ -112,6 +107,7 @@ export function PostCard({ post }) {
     const displayTitle = post.title || qp.title || null;
     const postTags = post.tags || [];
 
+    // Beğeni Kontrolü
     const isLiked = (post.likes || []).includes(currentUser?.id ?? -1)
 
     // İçerik Uzunluk Kontrolü (Blog için)
@@ -120,31 +116,6 @@ export function PostCard({ post }) {
     const rawContent = post.content ? post.content.replace(STRIP_HTML_REGEX, "") : "";
     const isLongContent = rawContent.length > MAX_LENGTH;
     const summaryText = isLongContent ? rawContent.substring(0, MAX_LENGTH) + "..." : rawContent;
-
-    // --- EFFECT: Kaydedilme Durumu Kontrolü ---
-    useEffect(() => {
-        let isMounted = true
-        const checkStatus = async () => {
-            if (!currentUser?.id || !post?.id) return
-            try {
-                const mySavedPosts = await getSavedPostsByUser(currentUser.id)
-                if (!isMounted) return
-                const found = mySavedPosts.find((item) => String(item.postId) === String(post.id))
-
-                if (found) {
-                    setIsSaved(true)
-                    setSavedPostId(found.id)
-                } else {
-                    setIsSaved(false)
-                    setSavedPostId(null)
-                }
-            } catch (e) {
-                console.error("Kaydedilen kontrol hatası:", e)
-            }
-        }
-        checkStatus()
-        return () => { isMounted = false }
-    }, [currentUser?.id, post?.id])
 
     // --- ACTIONS ---
 
@@ -214,16 +185,21 @@ export function PostCard({ post }) {
 
         try {
             if (!previousState) {
+                // KAYDET
                 const result = await savePost({ userId: currentUser.id, postId: post.id })
                 if (result?.id) setSavedPostId(result.id)
                 toast.success("Kaydedildi")
             } else {
+                // KAYITTAN ÇIKAR
                 let idToDelete = savedPostId
+
+                // Lazy Load: Eğer ID elimizde yoksa, silmeden hemen önce sorguluyoruz
                 if (!idToDelete) {
                     const mySaved = await getSavedPostsByUser(currentUser.id)
                     const found = mySaved.find((item) => String(item.postId) === String(post.id))
                     if (found) idToDelete = found.id
                 }
+
                 if (idToDelete) {
                     await unsavePost(idToDelete)
                     setSavedPostId(null)
@@ -271,7 +247,6 @@ export function PostCard({ post }) {
                         </div>
                     </div>
 
-                    {/* Sadece Profil Sayfasında ve Kendi Postuysa Göster */}
                     {showMenu && (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -353,6 +328,8 @@ export function PostCard({ post }) {
                         {post.type === "QUOTE_POST" && (
                             <div className="mt-1" onClick={goToDetail}>
                                 {displayTitle && <h3 className="text-lg font-bold text-gray-900 mb-2 px-1">{displayTitle}</h3>}
+
+                                {/* Alıntı Alanı */}
                                 <div className="relative bg-[#EFEFEF] rounded-xl flex min-h-[120px] cursor-pointer hover:opacity-95 transition-opacity">
                                     <div className="py-6 pl-6 pr-0 shrink-0"><div className="w-1.5 h-full bg-black rounded-full"></div></div>
                                     <div className="flex-1 py-6 pr-6 pl-4 relative flex flex-col justify-center">
@@ -361,6 +338,8 @@ export function PostCard({ post }) {
                                         <div className="mt-3 text-right w-full"><span className="text-sm text-gray-500 font-medium">— Sayfa {quotePage || "?"}</span></div>
                                     </div>
                                 </div>
+
+                                {/* Kitap Bilgisi Alanı */}
                                 <div className="mt-4 bg-[#F8F9FA] rounded-xl p-3 flex gap-4 items-center border border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <div className="shrink-0 shadow-sm">
                                         {post.image ? <img src={post.image} alt="Kitap" className="h-24 w-16 object-cover rounded" /> :
@@ -371,6 +350,18 @@ export function PostCard({ post }) {
                                         <div className="flex gap-2"><Badge variant="secondary" className="text-[10px] bg-white text-gray-600 border border-gray-200 font-normal px-2">Alıntı</Badge></div>
                                     </div>
                                 </div>
+
+                                {/* 🔥 DÜZELTİLEN KISIM: ETİKETLER BURAYA EKLENDİ 🔥 */}
+                                {postTags.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-3 pt-1">
+                                        {postTags.map((tag, i) => (
+                                            <Badge key={i} variant="secondary" className="bg-gray-100 text-gray-600 font-normal hover:bg-gray-200 px-2 py-0.5 text-xs border border-gray-200">
+                                                #{tag}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                )}
+
                             </div>
                         )}
 
