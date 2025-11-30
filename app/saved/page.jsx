@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux"; // useDispatch Eklendi
 import { PostCard } from "@/components/feed/post-card";
 import { EmptyState } from "@/components/common/empty-state";
-import { Bookmark } from "lucide-react";
+import { Bookmark, Loader2 } from "lucide-react";
 
 import { getSavedPostsByUser } from "@/services/savedPostService";
-import { getPostById } from "@/services/postService";  // bu varsa
+import { getPostById } from "@/services/postService";
+import { setPosts } from "@/store/slices/postSlice"; // Action Eklendi
 
 export default function SavedPage() {
+    const dispatch = useDispatch();
+    // 🔥 Veriyi artık Redux'tan okuyoruz
+    const reduxPosts = useSelector((state) => state.posts.posts);
     const currentUser = useSelector((state) => state.user.currentUser);
 
-    const [savedPosts, setSavedPosts] = useState([]);
     const [loading, setLoading] = useState(true);
+    // Kaydetme ikonlarının dolu gelmesi için ID listesi
+    const [savedPostIds, setSavedPostIds] = useState([]);
 
     useEffect(() => {
         if (!currentUser) return;
@@ -23,18 +28,20 @@ export default function SavedPage() {
 
         async function loadSaved() {
             try {
-                // 1) saved_post tablosundaki kayıtları getir
-                const saved = await getSavedPostsByUser(userId);
-                // saved: [{ id, postId, userId, created }, ...]
+                setLoading(true);
 
-                // 2) her postId için post datasını çek
-                const posts = [];
-                for (const item of saved) {
-                    const post = await getPostById(item.postId);
-                    if (post) posts.push(post);
-                }
+                const savedRelations = await getSavedPostsByUser(userId);
 
-                setSavedPosts(posts);
+                const ids = savedRelations.map(rel => rel.postId);
+                setSavedPostIds(ids);
+
+                const postsPromises = savedRelations.map(rel => getPostById(rel.postId));
+                const fetchedPosts = await Promise.all(postsPromises);
+
+                const validPosts = fetchedPosts.filter(p => p !== null);
+
+                dispatch(setPosts(validPosts));
+
             } catch (err) {
                 console.error("Kaydedilenleri yükleme hatası:", err);
             } finally {
@@ -43,12 +50,12 @@ export default function SavedPage() {
         }
 
         loadSaved();
-    }, [currentUser]);
+    }, [currentUser, dispatch]);
 
     if (loading) {
         return (
-            <div className="mx-auto max-w-2xl p-4">
-                <p>Yükleniyor...</p>
+            <div className="flex justify-center py-20">
+                <Loader2 className="animate-spin text-primary h-8 w-8" />
             </div>
         );
     }
@@ -63,9 +70,14 @@ export default function SavedPage() {
             </div>
 
             <div className="space-y-6">
-                {savedPosts.length > 0 ? (
-                    savedPosts.map((post) => (
-                        <PostCard key={post.id} post={post} />
+                {/* 🔥 dbPosts yerine reduxPosts kullanıyoruz */}
+                {reduxPosts && reduxPosts.length > 0 ? (
+                    reduxPosts.map((post) => (
+                        <PostCard
+                            key={post.id}
+                            post={post}
+                            isSavedInitial={true}
+                        />
                     ))
                 ) : (
                     <EmptyState

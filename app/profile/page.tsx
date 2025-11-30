@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { useSelector } from "react-redux"
+import { useSelector, useDispatch } from "react-redux"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -17,22 +17,27 @@ import toast from "react-hot-toast"
 import { getMeProfile, getMe } from "@/services/userService"
 import { getPostsByUser, getPostById } from "@/services/postService"
 import { getSavedPostsByUser } from "@/services/savedPostService"
+import { setPosts } from "@/store/slices/postSlice"
 
 export default function ProfilePage() {
     const { username } = useParams()
+    const dispatch = useDispatch()
     const currentUser = useSelector((state) => state.user.currentUser)
+    const reduxPosts = useSelector((state) => state.posts.posts)
 
     const [activeTab, setActiveTab] = useState("posts")
     const [profile, setProfile] = useState(null)
 
-    const [userPosts, setUserPosts] = useState([])
-    const [savedPosts, setSavedPosts] = useState([])
+    const [localUserPosts, setLocalUserPosts] = useState([])
+    const [localSavedPosts, setLocalSavedPosts] = useState([])
+
+    const [mySavedPostIds, setMySavedPostIds] = useState([])
+
     const [loading, setLoading] = useState(true)
     const [savedLoading, setSavedLoading] = useState(false)
 
     const isMyProfile = currentUser?.username === username || currentUser?.username?.toLowerCase() === username?.toLowerCase()
 
-    // 1. Profil ve Kullanıcı Postları
     useEffect(() => {
         async function fetchData() {
             try {
@@ -41,10 +46,21 @@ export default function ProfilePage() {
                 setProfile(profileData)
 
                 const userData = await getMe()
+
+
                 if (userData && userData.id) {
                     const postsData = await getPostsByUser(userData.id)
-                    setUserPosts(postsData || [])
+                    setLocalUserPosts(postsData || [])
+                    if(activeTab === "posts") {
+                        dispatch(setPosts(postsData || []))
+                    }
                 }
+
+                if (currentUser?.id) {
+                    const mySaved = await getSavedPostsByUser(currentUser.id)
+                    setMySavedPostIds(mySaved.map(s => s.postId))
+                }
+
             } catch (err) {
                 console.error("Veri getirme hatası:", err)
             } finally {
@@ -52,26 +68,29 @@ export default function ProfilePage() {
             }
         }
         fetchData()
-    }, [])
+    }, [dispatch])
 
-    // 2. Kaydedilenleri Çek
     useEffect(() => {
         const fetchSaved = async () => {
             if (isMyProfile && currentUser?.id) {
                 try {
                     setSavedLoading(true)
-                    // A) İlişkileri çek
                     const relations = await getSavedPostsByUser(currentUser.id)
-
                     if (!relations || relations.length === 0) {
-                        setSavedPosts([])
+                        setLocalSavedPosts([])
                         return
                     }
 
-                    // B) Detayları çek
                     const promises = relations.map(r => getPostById(r.postId))
                     const data = await Promise.all(promises)
-                    setSavedPosts(data.filter(p => p !== null))
+                    const validData = data.filter(p => p !== null)
+
+                    setLocalSavedPosts(validData)
+
+                    if(activeTab === "saved") {
+                        dispatch(setPosts(validData))
+                    }
+
                 } catch (e) {
                     console.error("Kaydedilenler hatası:", e)
                 } finally {
@@ -80,7 +99,15 @@ export default function ProfilePage() {
             }
         }
         if (isMyProfile) fetchSaved()
-    }, [isMyProfile, currentUser])
+    }, [isMyProfile, currentUser, dispatch])
+    useEffect(() => {
+        if (activeTab === "posts") {
+            dispatch(setPosts(localUserPosts))
+        } else if (activeTab === "saved") {
+            dispatch(setPosts(localSavedPosts))
+        }
+    }, [activeTab, localUserPosts, localSavedPosts, dispatch])
+
 
     const handleShare = () => {
         if (typeof window !== "undefined") {
@@ -130,16 +157,35 @@ export default function ProfilePage() {
                     <TabsTrigger value="about">Hakkında</TabsTrigger>
                 </TabsList>
 
+                {/* --- GÖNDERİLER SEKME İÇERİĞİ --- */}
                 <TabsContent value="posts">
-                    {userPosts.length > 0 ? (
-                        <div className="space-y-6">{userPosts.map((post) => <PostCard key={post.id} post={post} />)}</div>
+                    {/* Ekrana reduxPosts basıyoruz ama activeTab kontrolü önemli çünkü redux'ta o an başka veri olabilir */}
+                    {reduxPosts && reduxPosts.length > 0 ? (
+                        <div className="space-y-6">
+                            {reduxPosts.map((post) => (
+                                <PostCard
+                                    key={post.id}
+                                    post={post}
+                                    isSavedInitial={mySavedPostIds.includes(post.id)}
+                                />
+                            ))}
+                        </div>
                     ) : <EmptyState title="Henüz gönderi yok" />}
                 </TabsContent>
 
+                {/* --- KAYDEDİLENLER SEKME İÇERİĞİ --- */}
                 <TabsContent value="saved">
                     {savedLoading ? <div className="flex justify-center py-10"><Loader2 className="animate-spin" /></div> :
-                        savedPosts.length > 0 ? (
-                            <div className="space-y-6">{savedPosts.map((post) => <PostCard key={post.id} post={post} />)}</div>
+                        (reduxPosts && reduxPosts.length > 0) ? (
+                            <div className="space-y-6">
+                                {reduxPosts.map((post) => (
+                                    <PostCard
+                                        key={post.id}
+                                        post={post}
+                                        isSavedInitial={true}
+                                    />
+                                ))}
+                            </div>
                         ) : <EmptyState title="Henüz kayıt yok" icon={Bookmark} />}
                 </TabsContent>
 

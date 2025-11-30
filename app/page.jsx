@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux"; // 🔥 useDispatch eklendi
 import { PostCard } from "@/components/feed/post-card";
 import { FeedFilter } from "@/components/feed/feed-filter";
 import { RightSidebar } from "@/components/sidebar/right-sidebar";
@@ -10,11 +10,14 @@ import { Image as ImageIcon, Paperclip, Smile, Loader2, BookOpen } from "lucide-
 import { getAllPosts, createPost } from "@/services/postService";
 import { createThoughtPost } from "@/services/thoughtPostService";
 import { getSavedPostsByUser } from "@/services/savedPostService";
+import { setPosts } from "@/store/slices/postSlice"; // 🔥 setPosts import edildi
 import toast from "react-hot-toast";
 
 const MAX_LEN = 280;
 
 export default function HomePage() {
+  const dispatch = useDispatch(); // 🔥 Dispatch tanımlandı
+  // Artık ekrandaki veriyi direkt Redux'tan okuyoruz
   const reduxPosts = useSelector((state) => state.posts.posts);
   const currentUser = useSelector((state) => state.user.currentUser);
 
@@ -23,8 +26,8 @@ export default function HomePage() {
   const [feeling, setFeeling] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [dbPosts, setDbPosts] = useState([]);
-  const [savedPostIds, setSavedPostIds] = useState([]); // 🔥 YENİ STATE: Kaydedilen ID'ler
+  // dbPosts local state'ini kaldırdık, çünkü Redux kullanacağız.
+  const [savedPostIds, setSavedPostIds] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // --- VERİ ÇEKME ---
@@ -35,13 +38,14 @@ export default function HomePage() {
 
         // 1. Postları çek
         const postsData = await getAllPosts();
-        setDbPosts(postsData || []);
+        if (postsData) {
+          dispatch(setPosts(postsData));
+        }
 
         // 2. Eğer kullanıcı giriş yapmışsa, kaydettiklerini çek
         if (currentUser?.id) {
           try {
             const savedData = await getSavedPostsByUser(currentUser.id);
-            // Bize sadece ID listesi lazım: ["post1_id", "post2_id"]
             const ids = savedData.map(item => item.postId);
             setSavedPostIds(ids);
           } catch (err) {
@@ -58,10 +62,10 @@ export default function HomePage() {
     };
 
     loadData();
-  }, [currentUser?.id]);
+  }, [currentUser?.id, dispatch]);
 
-  // --- FİLTRELEME MANTIĞI ---
-  const displayPosts = dbPosts.filter((post) => {
+
+  const displayPosts = (reduxPosts || []).filter((post) => {
     if (activeFilter === "all") return true;
     return post.type === activeFilter;
   });
@@ -107,7 +111,9 @@ export default function HomePage() {
 
       // Yeni gönderi sonrası listeyi güncelle
       const items = await getAllPosts();
-      setDbPosts(items || []);
+      if (items) {
+        dispatch(setPosts(items));
+      }
 
     } catch (e) {
       console.error(e);
