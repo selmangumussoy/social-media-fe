@@ -73,3 +73,31 @@ export async function deleteTag(id) {
         return false
     }
 }
+
+// 📌 Günlük trendleri getir
+export async function getTrendingDaily() {
+    try {
+        const response = await BaseService({
+            method: GET,
+            url: "/tags/trending/daily",
+        });
+        return response.data?.data?.items || [];
+    } catch (error) {
+        console.error("Günlük trend etiketleri getirme hatası:", error);
+        return [];
+    }
+}
+
+// 📌 Haftalık trendleri getir
+export async function getTrendingWeekly() {
+    try {
+        const response = await BaseService({
+            method: GET,
+            url: "/tags/trending/weekly",
+        });
+        return response.data?.data?.items || [];
+    } catch (error) {
+        console.error("Haftalık trend etiketleri getirme hatası:", error);
+        return [];
+    }
+}
