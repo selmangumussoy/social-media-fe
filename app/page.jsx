@@ -6,9 +6,10 @@ import { PostCard } from "@/components/feed/post-card";
 import { FeedFilter } from "@/components/feed/feed-filter";
 import { RightSidebar } from "@/components/sidebar/right-sidebar";
 import { EmptyState } from "@/components/common/empty-state";
-import { Image as ImageIcon, Paperclip, Smile, Loader2 } from "lucide-react";
+import { Image as ImageIcon, Paperclip, Smile, Loader2, BookOpen } from "lucide-react";
 import { getAllPosts, createPost } from "@/services/postService";
 import { createThoughtPost } from "@/services/thoughtPostService";
+import { getSavedPostsByUser } from "@/services/savedPostService";
 import toast from "react-hot-toast";
 
 const MAX_LEN = 280;
@@ -21,16 +22,33 @@ export default function HomePage() {
   const [content, setContent] = useState("");
   const [feeling, setFeeling] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [dbPosts, setDbPosts] = useState([]);
+  const [savedPostIds, setSavedPostIds] = useState([]); // 🔥 YENİ STATE: Kaydedilen ID'ler
   const [loading, setLoading] = useState(true);
 
   // --- VERİ ÇEKME ---
   useEffect(() => {
-    const fetchPosts = async () => {
+    const loadData = async () => {
       try {
         setLoading(true);
-        const items = await getAllPosts();
-        setDbPosts(items || []);
+
+        // 1. Postları çek
+        const postsData = await getAllPosts();
+        setDbPosts(postsData || []);
+
+        // 2. Eğer kullanıcı giriş yapmışsa, kaydettiklerini çek
+        if (currentUser?.id) {
+          try {
+            const savedData = await getSavedPostsByUser(currentUser.id);
+            // Bize sadece ID listesi lazım: ["post1_id", "post2_id"]
+            const ids = savedData.map(item => item.postId);
+            setSavedPostIds(ids);
+          } catch (err) {
+            console.error("Kaydedilenler çekilemedi:", err);
+          }
+        }
+
       } catch (e) {
         console.error(e);
         toast.error("Akış yüklenemedi");
@@ -38,11 +56,11 @@ export default function HomePage() {
         setLoading(false);
       }
     };
-    fetchPosts();
-  }, []);
 
-  // --- FİLTRELEME MANTIĞI (Önemli Kısım) ---
-  // combinedPosts yerine sadece dbPosts'u filtreliyoruz
+    loadData();
+  }, [currentUser?.id]);
+
+  // --- FİLTRELEME MANTIĞI ---
   const displayPosts = dbPosts.filter((post) => {
     if (activeFilter === "all") return true;
     return post.type === activeFilter;
@@ -54,7 +72,6 @@ export default function HomePage() {
     const trimmed = (content ?? "").trim();
 
     if (!userId) {
-      // Kullanıcı yoksa uyarı ver ve geri dön
       toast.error("Oturum bulunamadı. Lütfen giriş yapın.");
       return;
     }
@@ -70,7 +87,6 @@ export default function HomePage() {
     try {
       setIsSubmitting(true);
 
-      // 1. Ana Postu Oluştur
       const post = await createPost({
         type: "THOUGHT_POST",
         content: trimmed.slice(0, 80),
@@ -79,7 +95,6 @@ export default function HomePage() {
         commentCount: 0,
       });
 
-      // 2. Detay (Thought) Oluştur
       await createThoughtPost({
         postId: post.id,
         content: trimmed,
@@ -90,7 +105,7 @@ export default function HomePage() {
       setContent("");
       setFeeling("");
 
-      // yeni gönderi sonrası tekrar fetch
+      // Yeni gönderi sonrası listeyi güncelle
       const items = await getAllPosts();
       setDbPosts(items || []);
 
@@ -106,7 +121,7 @@ export default function HomePage() {
       <div className="flex gap-6">
         <div className="mx-auto w-full max-w-2xl p-4 pt-2">
 
-          {/* --- COMPOSER (Yazı Alanı) --- */}
+          {/* --- COMPOSER --- */}
           <div className="mb-5 rounded-2xl border border-border/60 bg-card/60 p-4 shadow-sm">
             <div className="flex gap-3">
               <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full ring-1 ring-border/60">
@@ -177,9 +192,12 @@ export default function HomePage() {
             {loading ? (
                 <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
             ) : displayPosts.length > 0 ? (
-                // 👇 BURADA ARTIK combinedPosts YOK, displayPosts VAR
                 displayPosts.map((post) => (
-                    <PostCard key={post.id} post={post} />
+                    <PostCard
+                        key={post.id}
+                        post={post}
+                        isSavedInitial={savedPostIds.includes(post.id)}
+                    />
                 ))
             ) : (
                 <EmptyState
