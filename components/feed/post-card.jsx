@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -39,7 +39,6 @@ import {
 
 import { cn } from "@/lib/utils"
 
-// İçerikteki #etiket'leri biraz öne çıkarmak için basit helper
 const renderContentWithHashtags = (text) => {
   if (!text) return null
 
@@ -57,7 +56,8 @@ const renderContentWithHashtags = (text) => {
   })
 }
 
-export function PostCard({ post }) {
+// 🔥 `isSavedInitial` prop'unu ekledik
+export function PostCard({ post, isSavedInitial = false }) {
   const dispatch = useDispatch()
   const router = useRouter()
   const currentUser = useSelector((state) => state.user.currentUser)
@@ -67,7 +67,8 @@ export function PostCard({ post }) {
   const [isUpdating, setIsUpdating] = useState(false)
 
   // --- KAYDETME STATE'LERİ ---
-  const [isSaved, setIsSaved] = useState(false)
+  // Başlangıç değeri olarak parent'tan gelen veriyi kullanıyoruz.
+  const [isSaved, setIsSaved] = useState(isSavedInitial)
   const [savedPostId, setSavedPostId] = useState(null)
   const [saveLoading, setSaveLoading] = useState(false)
 
@@ -95,42 +96,6 @@ export function PostCard({ post }) {
 
   const isLiked = (post.likes || []).includes(currentUser?.id ?? -1)
 
-  // ✔️ GÖNDERİ DAHA ÖNCE KAYDEDİLMİŞ Mİ? (İLK YÜKLEME)
-  useEffect(() => {
-    let isMounted = true
-
-    const checkStatus = async () => {
-      if (!currentUser?.id || !post?.id) return
-
-      try {
-        const mySavedPosts = await getSavedPostsByUser(currentUser.id)
-
-        if (!isMounted) return
-
-        const found = mySavedPosts.find(
-            (item) => String(item.postId) === String(post.id)
-        )
-
-        if (found) {
-          setIsSaved(true)
-          setSavedPostId(found.id)
-        } else {
-          setIsSaved(false)
-          setSavedPostId(null)
-        }
-      } catch (e) {
-        console.error("Kaydedilen kontrol hatası:", e)
-      }
-    }
-
-    checkStatus()
-
-    return () => {
-      isMounted = false
-    }
-  }, [currentUser?.id, post?.id])
-
-  // --- FONKSİYONLAR ---
 
   const handleDelete = async () => {
     try {
@@ -177,7 +142,6 @@ export function PostCard({ post }) {
     dispatch(toggleLike({ postId: post?.id, userId: currentUser?.id }))
   }
 
-  // ✔️ KAYDET / KAYITTAN ÇIKAR (TOGGLE)
   const handleSave = async (e) => {
     e.preventDefault()
     e.stopPropagation()
@@ -210,6 +174,8 @@ export function PostCard({ post }) {
         // ✔️ KAYITTAN ÇIKAR
         let idToDelete = savedPostId
 
+        // Eğer ID henüz elimizde yoksa (ilk render'da parent'tan sadece boolean geldiği için),
+        // silmeden hemen önce sorgulayıp ID'yi buluyoruz. Bu "Lazy Load" yöntemidir.
         if (!idToDelete) {
           const mySaved = await getSavedPostsByUser(currentUser.id)
           const found = mySaved.find(
@@ -343,7 +309,6 @@ export function PostCard({ post }) {
                     </p>
                 )}
 
-                {/* 👇 Backend'in döndürdüğü hashtag listesi (PostResponse.tags) */}
                 {hasTags && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {post.tags.map((tag) => (
