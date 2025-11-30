@@ -21,7 +21,6 @@ import { cn } from "@/lib/utils";
 import { logout } from "@/store/slices/userSlice";
 import toast from "react-hot-toast";
 import { createPost } from "@/services/postService";
-import { createThoughtPost } from "@/services/thoughtPostService";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";

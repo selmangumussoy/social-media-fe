@@ -8,7 +8,6 @@ import { RightSidebar } from "@/components/sidebar/right-sidebar";
 import { EmptyState } from "@/components/common/empty-state";
 import { BookOpen, Image as ImageIcon, Paperclip, Smile } from "lucide-react";
 import { getAllPosts } from "@/services/postService";
-import { createThought } from "@/services/thoughtPostService";
 import toast from "react-hot-toast";
 
 const MAX_LEN = 280;
