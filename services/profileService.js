@@ -16,3 +16,18 @@ export async function updateProfile(id, profileData) {
         throw error
     }
 }
+
+
+
+export async function getProfileById(id) {
+    try {
+        const response = await BaseService({
+            method: GET,
+            url: `${PROFILE_URL}/${id}`,
+        })
+        return response?.data?.data || null
+    } catch (error) {
+        console.error("Belirtilen kullanıcıyı getirme hatası:", error)
+        return null
+    }
+}

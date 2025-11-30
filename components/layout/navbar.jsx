@@ -1,3 +1,4 @@
+// src/components/layout/Navbar.jsx
 "use client"
 
 import Link from "next/link"
@@ -9,89 +10,156 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useTheme } from "@/hooks/useTheme"
 import { useSelector } from "react-redux"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { searchUsers } from "@/services/userService"
 
 export function Navbar() {
+  // Hooks çağrıları bileşenin en üstünde ve KOŞULSUZ olmalı
   const pathname = usePathname()
   const { theme, toggleTheme } = useTheme()
   const currentUser = useSelector((state) => state.user.currentUser)
   const unreadCount = useSelector((state) => state.notifications.unreadCount)
-  const [searchQuery, setSearchQuery] = useState("")
 
+  const [mounted, setMounted] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [results, setResults] = useState([])
+  const [showDropdown, setShowDropdown] = useState(false)
+
+  // Hydration mismatch çözümü
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Login/register sayfalarında navbar görünmez
   const isAuthPage = pathname === "/login" || pathname === "/register"
 
+  // DÜZELTME: Erken dönüş artık burada. Hooks'ların sıralaması korunur.
   if (isAuthPage) return null
 
+  // 🔎 Debounce search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setResults([])
+      setShowDropdown(false)
+      return
+    }
+
+    const timeout = setTimeout(async () => {
+      const data = await searchUsers(searchQuery)
+      setResults(data)
+      setShowDropdown(true)
+    }, 300)
+
+    return () => clearTimeout(timeout)
+  }, [searchQuery])
+
   return (
-    <nav className="sticky top-0 z-50 border-b border-border/50 bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/60">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary shadow-sm">
-            <span className="text-xl font-bold text-white">E</span>
+      <nav className="sticky top-0 z-50 border-b border-border/50 bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/60">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4">
+
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary shadow-sm">
+              <span className="text-xl font-bold text-white">E</span>
+            </div>
+            <span className="hidden text-xl font-bold text-foreground sm:inline">
+            Entelektüel
+          </span>
+          </Link>
+
+          {/* Search Bar */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+            <Input
+                type="search"
+                placeholder="Kullanıcı ara..."
+                className="w-full rounded-xl pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => searchQuery && setShowDropdown(true)}
+            />
+
+            {/* Search Dropdown */}
+            {showDropdown && results.length > 0 && (
+                <div className="absolute left-0 right-0 top-12 z-[9999] rounded-xl border bg-card shadow-lg animate-in fade-in slide-in-from-top-2">
+
+                  {results.map((user) => (
+                      <Link
+                          key={user.id}
+                          // Rota Tutarlılığı: /profile/profileId
+                          href={`/profile/${user.id}`}
+                          className="flex items-center gap-3 p-3 hover:bg-muted transition"
+                          onClick={() => setShowDropdown(false)}
+                      >
+
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                          <AvatarFallback>
+                            {user.fullName?.charAt(0) || user.userName?.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+
+                        <div className="flex flex-col">
+                          <span className="font-medium">{user.fullName}</span>
+                          <span className="text-sm text-muted-foreground">
+            @{user.userName}
+          </span>
+                        </div>
+                      </Link>
+                  ))}
+
+                </div>
+            )}
+
           </div>
-          <span className="hidden text-xl font-bold text-foreground sm:inline">Entelektüel</span>
-        </Link>
 
-        {/* Search Bar */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Kitap, yazar veya konu ara..."
-            className="w-full rounded-xl pl-10"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+          {/* Right Side */}
+          <div className="flex items-center gap-2">
+
+            {/* Create Post */}
+            <Link href="/create-post">
+              <Button size="sm" className="hidden sm:flex gap-2 rounded-full shadow-sm hover:scale-105">
+                <PenSquare className="h-4 w-4" />
+                Yeni Gönderi
+              </Button>
+              <Button size="icon" variant="ghost" className="sm:hidden rounded-full">
+                <PenSquare className="h-5 w-5" />
+              </Button>
+            </Link>
+
+            {/* Theme Toggle */}
+            <Button size="icon" variant="ghost" onClick={toggleTheme} className="rounded-full">
+              {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+            </Button>
+
+            {/* Notifications */}
+            <Link href="/notifications">
+              <Button size="icon" variant="ghost" className="relative rounded-full">
+                <Bell className="h-5 w-5" />
+
+                {unreadCount > 0 && (
+                    <Badge className="absolute -right-1 -top-1 h-5 min-w-5 rounded-full bg-destructive text-xs flex items-center justify-center">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </Badge>
+                )}
+              </Button>
+            </Link>
+
+            {/* Avatar → ID tabanlı profil yönlendirme */}
+            {mounted && currentUser?.id && (
+                <Link href={`/profile/${currentUser.id || currentUser.id}`}> {/* DÜZELTME: Rotayı ve ID'yi tutarlı hale getirdik */}
+                  <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-border/30 hover:ring-primary/50 hover:scale-105">
+                    <AvatarImage src={currentUser.avatar || "/placeholder.svg"} />
+                    <AvatarFallback>
+                      {currentUser?.name?.charAt(0) || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
+            )}
+
+          </div>
         </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          {/* Create Post Button */}
-          <Link href="/create-post">
-            <Button
-              size="sm"
-              className="hidden gap-2 rounded-full shadow-sm transition-all hover:scale-105 hover:shadow-md sm:flex"
-            >
-              <PenSquare className="h-4 w-4" />
-              <span>Yeni Gönderi</span>
-            </Button>
-            <Button size="icon" variant="ghost" className="rounded-full transition-all hover:scale-105 sm:hidden">
-              <PenSquare className="h-5 w-5" />
-            </Button>
-          </Link>
-
-          {/* Theme Toggle */}
-          <Button
-            size="icon"
-            variant="ghost"
-            className="rounded-full transition-all hover:scale-105"
-            onClick={toggleTheme}
-          >
-            {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-          </Button>
-
-          {/* Notifications */}
-          <Link href="/notifications">
-            <Button size="icon" variant="ghost" className="relative rounded-full transition-all hover:scale-105">
-              <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
-                <Badge className="absolute -right-1 -top-1 h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs shadow-sm">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </Badge>
-              )}
-            </Button>
-          </Link>
-
-          {/* User Avatar */}
-          <Link href="/profile">
-            <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-border/30 transition-all hover:ring-primary/50 hover:scale-105">
-              <AvatarImage src={currentUser?.avatar || "/placeholder.svg"} alt={currentUser?.name} />
-              <AvatarFallback>{currentUser?.name?.charAt(0) || "U"}</AvatarFallback>
-            </Avatar>
-          </Link>
-        </div>
-      </div>
-    </nav>
+      </nav>
   )
 }

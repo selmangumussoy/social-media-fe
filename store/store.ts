@@ -5,18 +5,20 @@ import userReducer from "./slices/userSlice";
 import postReducer from "./slices/postSlice";
 import chatReducer from "./slices/chatSlice";
 import notificationReducer from "./slices/notificationSlice";
+import followReducer from "./slices/followSlice";
 
 const rootReducer = combineReducers({
   user: userReducer,
   posts: postReducer,
   chat: chatReducer,
   notifications: notificationReducer,
+  follow: followReducer,
 });
 
 const persistConfig = {
   key: "root",
   storage,
-  whitelist: ["user"], // Sadece user bilgilerini kalıcı yapıyoruz
+  whitelist: ["user", "follow"],
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

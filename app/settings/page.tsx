@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSelector, useDispatch } from "react-redux"
+import { useSelector } from "react-redux"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,15 +9,12 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { User, Lock, Bell, Palette, Upload, Loader2, Calendar, Users, Globe } from "lucide-react" // Yeni ikonlar eklendi
-import { useTheme } from "@/hooks/useTheme"
+import { User, Lock, Bell, Palette, Upload, Loader2, Calendar, Users, Globe } from "lucide-react"
 import toast from "react-hot-toast"
 
-// Servis metodlarını import et (Yollarınızı kontrol edin)
 import { updateProfile as updateProfileApi } from "@/services/profileService"
 import { getMeProfile } from "@/services/userService"
 
-// --- Tip Tanımlamaları ---
 interface ProfileFormData {
   id: string | null;
   name: string;
@@ -25,14 +22,13 @@ interface ProfileFormData {
   email: string;
   bio: string;
   phone: string;
-  picture: string; // Resim URL'si
+  picture: string;
   website: string;
   birthDay: string | null;
-  gender: string | null; // EK: Formda olacak
-  socialLinks: string | null; // EK: Formda olacak
+  gender: string | null;
+  socialLinks: string | null;
 }
 
-// Backend'in beklediği tüm alanları içeren başlangıç durumu
 const initialFormData: ProfileFormData = {
   id: null,
   name: "",
@@ -47,25 +43,20 @@ const initialFormData: ProfileFormData = {
   socialLinks: null,
 };
 
-
-// Resim yükleme servisi simülasyonu
 async function uploadFile(file: File): Promise<string> {
-  console.log("Dosya yükleniyor:", file.name);
   await new Promise(resolve => setTimeout(resolve, 500));
   return "https://cdn.example.com/new-avatar-" + Date.now() + ".jpg";
 }
 
-
 export default function SettingsPage() {
   const currentUserId = useSelector((state: any) => state.user.currentUser?.id);
-  const { theme, toggleTheme } = useTheme();
 
   const [formData, setFormData] = useState<ProfileFormData>(initialFormData);
   const [pictureFile, setPictureFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // --- 1. Veri Çekme (getMeProfile) ---
+  // 🔹 PROFIL GETIRME
   useEffect(() => {
     async function fetchProfile() {
       try {
@@ -75,115 +66,103 @@ export default function SettingsPage() {
           setFormData({
             ...initialFormData,
             ...data,
-            id: currentUserId || data.id || null
+            id: data.id  // ✔ PROFİL ID (DÜZELTİLMİŞ)
           });
         } else {
-          toast.error("Profil bilgileri yüklenemedi. Lütfen tekrar deneyin.");
+          toast.error("Profil bilgileri yüklenemedi.");
         }
       } catch (error) {
         console.error("Profil yükleme hatası:", error);
-        toast.error("Profil bilgileri yüklenirken bir sorun oluştu.");
+        toast.error("Profil yüklenirken hata oluştu.");
       } finally {
         setIsLoading(false);
       }
     }
-    fetchProfile();
-  }, [currentUserId]);
 
-  // --- Form Değişiklik İşleyicileri ---
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    fetchProfile();
+  }, []);
+
+  const handleChange = (e: any) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
-    })
-  }
+      [e.target.name]: e.target.value
+    });
+  };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setPictureFile(e.target.files[0])
+  const handleFileChange = (e: any) => {
+    if (e.target.files?.length > 0) {
+      setPictureFile(e.target.files[0]);
     }
-  }
+  };
 
+  // 🔹 PROFİL GÜNCELLEME
+  const handleSaveProfile = async (e: any) => {
+    e.preventDefault();
 
-  // --- 2. Veri Güncelleme (updateProfileApi) ---
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    const userId = formData.id;
-    if (!userId) {
-      toast.error("Kullanıcı ID bulunamadı. Güncelleme yapılamıyor.");
+    const profileId = formData.id;
+    if (!profileId) {
+      toast.error("Profil ID bulunamadı!");
       return;
     }
 
     setIsSaving(true);
     let finalPictureUrl = formData.picture;
 
-    // Dosya yükleme
     if (pictureFile) {
-      toast.loading("Resim yükleniyor...", { id: "uploading" });
+      toast.loading("Resim yükleniyor...", { id: "upload" });
       try {
-        const uploadedUrl = await uploadFile(pictureFile);
-        toast.dismiss("uploading");
-
-        if (uploadedUrl) {
-          finalPictureUrl = uploadedUrl;
-        } else {
-          throw new Error("Resim yüklenemedi.");
-        }
-      } catch (error) {
-        toast.dismiss("uploading");
-        toast.error("Resim yükleme başarısız.");
+        finalPictureUrl = await uploadFile(pictureFile);
+        toast.dismiss("upload");
+      } catch {
+        toast.dismiss("upload");
+        toast.error("Resim yüklenemedi.");
         setIsSaving(false);
         return;
       }
     }
 
-    // API'ye gönderilecek final veriyi hazırla (ID'yi çıkar)
     const { id, ...payload } = {
       ...formData,
-      picture: finalPictureUrl,
+      picture: finalPictureUrl
     };
 
     toast.loading("Profil güncelleniyor...", { id: "saving" });
+
     try {
-      // updateProfileApi çağrıldığında, formData'dan gelen tüm alanlar (birthDay, gender, socialLinks dahil) payload içinde gönderilir.
-      await updateProfileApi(userId, payload);
+      await updateProfileApi(profileId, payload);
 
       toast.dismiss("saving");
-      toast.success("Profil başarıyla güncellendi!");
+      toast.success("Profil güncellendi!");
 
-      setFormData(prev => ({ ...prev, picture: finalPictureUrl }));
+      setFormData(prev => ({
+        ...prev,
+        picture: finalPictureUrl
+      }));
+
       setPictureFile(null);
-
     } catch (error) {
       toast.dismiss("saving");
-      toast.error("Profil güncelleme başarısız oldu.");
+      toast.error("Profil güncelleme başarısız.");
     } finally {
       setIsSaving(false);
     }
-  }
+  };
 
-  const handleSavePassword = (e: React.FormEvent) => {
-    e.preventDefault()
-    toast.success("Şifre güncellendi!")
-  }
-
-  // --- Yükleme Durumu Gösterimi ---
   if (isLoading) {
     return (
         <div className="mx-auto max-w-3xl p-8 text-center min-h-screen flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="mt-4 text-muted-foreground">Profil yükleniyor...</p>
         </div>
-    )
+    );
   }
 
-  if (!formData.id && !isLoading) {
+  if (!formData.id) {
     return (
         <div className="flex min-h-screen items-center justify-center">
-          <p>Profil yüklenemedi veya kullanıcı oturumu bulunamadı.</p>
+          <p>Profil yüklenemedi.</p>
         </div>
-    )
+    );
   }
 
   return (
@@ -196,172 +175,118 @@ export default function SettingsPage() {
         <Tabs defaultValue="profile" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="profile" className="gap-2">
-              <User className="h-4 w-4" />
-              <span className="hidden sm:inline">Profil</span>
+              <User className="h-4 w-4" /> Profil
             </TabsTrigger>
             <TabsTrigger value="security" className="gap-2">
-              <Lock className="h-4 w-4" />
-              <span className="hidden sm:inline">Güvenlik</span>
+              <Lock className="h-4 w-4" /> Güvenlik
             </TabsTrigger>
             <TabsTrigger value="notifications" className="gap-2">
-              <Bell className="h-4 w-4" />
-              <span className="hidden sm:inline">Bildirimler</span>
+              <Bell className="h-4 w-4" /> Bildirimler
             </TabsTrigger>
             <TabsTrigger value="appearance" className="gap-2">
-              <Palette className="h-4 w-4" />
-              <span className="hidden sm:inline">Görünüm</span>
+              <Palette className="h-4 w-4" /> Görünüm
             </TabsTrigger>
           </TabsList>
 
-          {/* Profile Tab */}
           <TabsContent value="profile">
             <Card>
               <CardHeader>
                 <CardTitle>Profil Bilgileri</CardTitle>
                 <CardDescription>Profil bilgilerinizi güncelleyin</CardDescription>
               </CardHeader>
+
               <CardContent>
                 <form onSubmit={handleSaveProfile} className="space-y-6">
 
-                  {/* Avatar Yükleme Alanı */}
+                  {/* Avatar */}
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                    <Avatar className="h-20 w-20 flex-shrink-0">
+                    <Avatar className="h-20 w-20">
                       <AvatarImage
-                          src={pictureFile ? URL.createObjectURL(pictureFile) : formData.picture || "/placeholder.svg"}
-                          alt={formData.name}
+                          src={pictureFile ? URL.createObjectURL(pictureFile) : formData.picture}
                       />
-                      <AvatarFallback className="text-2xl">{formData.name ? formData.name.charAt(0) : '?'}</AvatarFallback>
+                      <AvatarFallback>{formData.name?.charAt(0) || "?"}</AvatarFallback>
                     </Avatar>
-                    <div className="flex-1 space-y-2">
-                      <Label htmlFor="picture-upload" className="flex items-center gap-2 cursor-pointer w-fit p-2 border rounded-md hover:bg-muted/50 transition-colors">
+
+                    <div className="space-y-2">
+                      <Label htmlFor="picture-upload" className="flex items-center gap-2 cursor-pointer p-2 border rounded-md">
                         <Upload className="h-4 w-4" />
-                        {pictureFile ? `Seçilen: ${pictureFile.name}` : "Yeni Profil Resmi Yükle"}
+                        Resim Yükle
                       </Label>
-                      <Input
-                          id="picture-upload"
-                          name="pictureFile"
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileChange}
-                          className="hidden"
-                      />
-                      <p className="text-sm text-muted-foreground">JPG, PNG veya GIF</p>
+                      <Input id="picture-upload" type="file" className="hidden" onChange={handleFileChange} />
                     </div>
                   </div>
 
+                  {/* İsim - Username */}
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Tam İsim</Label>
-                      <Input id="name" name="name" value={formData.name} onChange={handleChange} required />
+                    <div>
+                      <Label>Tam İsim</Label>
+                      <Input name="name" value={formData.name} onChange={handleChange} />
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="username">Kullanıcı Adı</Label>
-                      <Input id="username" name="username" value={formData.username} onChange={handleChange} required />
+                    <div>
+                      <Label>Kullanıcı Adı</Label>
+                      <Input name="username" value={formData.username} onChange={handleChange} />
                     </div>
                   </div>
 
+                  {/* Email / Telefon */}
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">E-posta</Label>
-                      <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} required />
+                    <div>
+                      <Label>E-posta</Label>
+                      <Input name="email" value={formData.email} onChange={handleChange} />
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Telefon Numarası</Label>
-                      <Input
-                          id="phone"
-                          name="phone"
-                          type="tel"
-                          value={formData.phone}
-                          onChange={handleChange}
-                          placeholder="555 555 55 55"
-                      />
+                    <div>
+                      <Label>Telefon</Label>
+                      <Input name="phone" value={formData.phone} onChange={handleChange} />
                     </div>
                   </div>
 
-                  {/* EK: birthDay ve gender alanları */}
+                  {/* Doğum tarihi - Cinsiyet */}
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="birthDay" className="flex items-center gap-2"><Calendar className="h-4 w-4"/>Doğum Tarihi</Label>
-                      <Input
-                          id="birthDay"
-                          name="birthDay"
-                          type="date"
-                          value={formData.birthDay || ''}
-                          onChange={handleChange}
-                      />
+                    <div>
+                      <Label>Doğum Tarihi</Label>
+                      <Input type="date" name="birthDay" value={formData.birthDay || ""} onChange={handleChange} />
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="gender" className="flex items-center gap-2"><Users className="h-4 w-4"/>Cinsiyet</Label>
-                      {/* Gerçek projede Select bileşeni kullanılmalı */}
-                      <Input
-                          id="gender"
-                          name="gender"
-                          type="text"
-                          value={formData.gender || ''}
-                          onChange={handleChange}
-                          placeholder="Erkek/Kadın/Diğer"
-                      />
+                    <div>
+                      <Label>Cinsiyet</Label>
+                      <Input name="gender" value={formData.gender || ""} onChange={handleChange} />
                     </div>
                   </div>
-                  {/* EK: socialLinks ve website alanları */}
-                  <div className="space-y-2">
-                    <Label htmlFor="website" className="flex items-center gap-2"><Globe className="h-4 w-4"/>Web Sitesi</Label>
-                    <Input
-                        id="website"
-                        name="website"
-                        type="url"
-                        value={formData.website}
-                        onChange={handleChange}
-                        placeholder="https://www.websiteniz.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="socialLinks">Sosyal Bağlantılar (JSON veya Link)</Label>
-                    <Textarea
-                        id="socialLinks"
-                        name="socialLinks"
-                        placeholder="Instagram: https://... , Twitter: https://..."
-                        className="min-h-16 resize-none"
-                        value={formData.socialLinks || ''}
-                        onChange={handleChange}
-                    />
+
+                  {/* Website */}
+                  <div>
+                    <Label>Web Sitesi</Label>
+                    <Input name="website" value={formData.website} onChange={handleChange} />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="bio">Biyografi</Label>
-                    <Textarea
-                        id="bio"
-                        name="bio"
-                        placeholder="Kendinizden bahsedin..."
-                        className="min-h-24 resize-none"
-                        value={formData.bio}
-                        onChange={handleChange}
-                    />
+                  {/* Sosyal Linkler */}
+                  <div>
+                    <Label>Sosyal Bağlantılar</Label>
+                    <Textarea name="socialLinks" value={formData.socialLinks || ""} onChange={handleChange} />
+                  </div>
+
+                  {/* Bio */}
+                  <div>
+                    <Label>Biyografi</Label>
+                    <Textarea name="bio" value={formData.bio} onChange={handleChange} />
                   </div>
 
                   <Button type="submit" disabled={isSaving}>
-                    {isSaving ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Kaydediliyor...
-                        </>
-                    ) : (
-                        "Değişiklikleri Kaydet"
-                    )}
+                    {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    Kaydet
                   </Button>
+
                 </form>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Diğer Tab'lar (Aynı Kaldı) */}
           <TabsContent value="security">...</TabsContent>
           <TabsContent value="notifications">...</TabsContent>
           <TabsContent value="appearance">...</TabsContent>
         </Tabs>
       </div>
-  )
+  );
 }
