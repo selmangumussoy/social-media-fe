@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useDispatch, useSelector } from "react-redux"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
@@ -67,11 +67,6 @@ export function PostCard({ post }) {
     const pathname = usePathname()
 
     const currentUser = useSelector((state) => state.user.currentUser)
-// 🔥 `isSavedInitial` prop'unu ekledik
-export function PostCard({ post, isSavedInitial = false }) {
-  const dispatch = useDispatch()
-  const router = useRouter()
-  const currentUser = useSelector((state) => state.user.currentUser)
 
     // --- STATE ---
     const [isEditing, setIsEditing] = useState(false)
@@ -82,11 +77,6 @@ export function PostCard({ post, isSavedInitial = false }) {
     const [isSaved, setIsSaved] = useState(false)
     const [savedPostId, setSavedPostId] = useState(null)
     const [saveLoading, setSaveLoading] = useState(false)
-  // --- KAYDETME STATE'LERİ ---
-  // Başlangıç değeri olarak parent'tan gelen veriyi kullanıyoruz.
-  const [isSaved, setIsSaved] = useState(isSavedInitial)
-  const [savedPostId, setSavedPostId] = useState(null)
-  const [saveLoading, setSaveLoading] = useState(false)
 
     if (!post) return null
 
@@ -205,9 +195,6 @@ export function PostCard({ post, isSavedInitial = false }) {
     const handleSave = async (e) => {
         e.preventDefault()
         e.stopPropagation()
-  const handleSave = async (e) => {
-    e.preventDefault()
-    e.stopPropagation()
 
         if (!currentUser?.id) {
             toast.error("Lütfen giriş yapın.")
@@ -245,47 +232,6 @@ export function PostCard({ post, isSavedInitial = false }) {
             setSaveLoading(false)
         }
     }
-    try {
-      if (!previousState) {
-        // ✔️ KAYDET
-        const result = await savePost({
-          userId: currentUser.id,
-          postId: post.id,
-        })
-
-        if (result?.id) {
-          setSavedPostId(result.id)
-        }
-
-        toast.success("Kaydedildi")
-      } else {
-        // ✔️ KAYITTAN ÇIKAR
-        let idToDelete = savedPostId
-
-        // Eğer ID henüz elimizde yoksa (ilk render'da parent'tan sadece boolean geldiği için),
-        // silmeden hemen önce sorgulayıp ID'yi buluyoruz. Bu "Lazy Load" yöntemidir.
-        if (!idToDelete) {
-          const mySaved = await getSavedPostsByUser(currentUser.id)
-          const found = mySaved.find(
-              (item) => String(item.postId) === String(post.id)
-          )
-          if (found) idToDelete = found.id
-        }
-
-        if (idToDelete) {
-          await unsavePost(idToDelete)
-          setSavedPostId(null)
-          toast.success("Kayıt kaldırıldı")
-        }
-      }
-    } catch (error) {
-      console.error(error)
-      setIsSaved(previousState)
-      toast.error("İşlem başarısız")
-    } finally {
-      setSaveLoading(false)
-    }
-  }
 
     const goToDetail = (e) => {
         e.stopPropagation()
@@ -376,97 +322,89 @@ export function PostCard({ post, isSavedInitial = false }) {
                                     </h2>
                                 </div>
 
-                      <p className="text-[15px] leading-relaxed text-gray-700 line-clamp-3">
-                        {renderContentWithHashtags(post.content)}
-                      </p>
+                                <p className="text-gray-600 text-base leading-relaxed line-clamp-3 mb-2 font-normal">
+                                    {summaryText}
+                                </p>
 
-                      <div className="flex gap-2 pt-2">
-                        <Badge
-                            variant="outline"
-                            className="gap-1 border-gray-200 py-1 px-2 text-xs font-normal text-gray-500"
-                        >
-                          <Sparkles className="h-3 w-3" /> AI Analizi
-                        </Badge>
+                                {isLongContent && (
+                                    <div className="flex items-center gap-1 text-sm font-medium text-teal-600 mt-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                                        Devamını oku <ArrowRight size={14} />
+                                    </div>
+                                )}
 
-                        <Badge
-                            variant="outline"
-                            className="gap-1 border-gray-200 py-1 px-2 text-xs font-normal text-gray-500"
-                        >
-                          <Languages className="h-3 w-3" /> Çevir
-                        </Badge>
-                      </div>
-                    </div>
-                ) : post.type === "THOUGHT_POST" ? (
-                    <div className="px-2 py-4 text-center">
-                      <p className="text-xl font-medium italic leading-relaxed text-gray-800">
-                        "{post.content}"
-                      </p>
-                    </div>
-                ) : (
-                    <p className="whitespace-pre-wrap leading-relaxed text-gray-800">
-                      {post.content}
-                    </p>
+                                <div className="flex gap-2 pt-2 mt-2 flex-wrap">
+                                    {postTags.length > 0 && postTags.map((tag, i) => (
+                                        <Badge key={i} variant="secondary" className="bg-gray-100 text-gray-600 font-normal hover:bg-gray-200 px-2 py-0.5 text-xs border border-gray-200">
+                                            #{tag}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 2. QUOTE POST */}
+                        {post.type === "QUOTE_POST" && (
+                            <div className="mt-1" onClick={goToDetail}>
+                                {displayTitle && <h3 className="text-lg font-bold text-gray-900 mb-2 px-1">{displayTitle}</h3>}
+                                <div className="relative bg-[#EFEFEF] rounded-xl flex min-h-[120px] cursor-pointer hover:opacity-95 transition-opacity">
+                                    <div className="py-6 pl-6 pr-0 shrink-0"><div className="w-1.5 h-full bg-black rounded-full"></div></div>
+                                    <div className="flex-1 py-6 pr-6 pl-4 relative flex flex-col justify-center">
+                                        <Quote className="absolute top-4 left-2 h-8 w-8 text-gray-300 fill-gray-300 transform -scale-x-100 opacity-60 z-0" />
+                                        <p className="relative z-10 font-serif text-xl text-gray-800 leading-relaxed">"{quoteContent}"</p>
+                                        <div className="mt-3 text-right w-full"><span className="text-sm text-gray-500 font-medium">— Sayfa {quotePage || "?"}</span></div>
+                                    </div>
+                                </div>
+                                <div className="mt-4 bg-[#F8F9FA] rounded-xl p-3 flex gap-4 items-center border border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <div className="shrink-0 shadow-sm">
+                                        {post.image ? <img src={post.image} alt="Kitap" className="h-24 w-16 object-cover rounded" /> :
+                                            <div className="h-24 w-16 bg-gradient-to-br from-orange-100 to-orange-200 border border-orange-200 rounded flex flex-col items-center justify-center p-1 text-center"><span className="font-bold text-[9px] text-orange-800 leading-tight line-clamp-2">{bookName || "Bilinmeyen Kitap"}</span></div>}
+                                    </div>
+                                    <div className="flex flex-col gap-1.5 flex-1">
+                                        <div><h4 className="font-bold text-gray-900 text-base leading-tight">{bookName || "Bilinmeyen Kitap"}</h4><span className="text-sm text-gray-500 font-medium block mt-0.5">{authorName || "Yazar Bilgisi Yok"}</span></div>
+                                        <div className="flex gap-2"><Badge variant="secondary" className="text-[10px] bg-white text-gray-600 border border-gray-200 font-normal px-2">Alıntı</Badge></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 3. DİĞER (THOUGHT) POST */}
+                        {post.type !== "QUOTE_POST" && post.type !== "BLOG_POST" && (
+                            <>
+                                <p className="text-gray-800 whitespace-pre-wrap leading-relaxed text-lg">
+                                    {renderContentWithHashtags(post.content)}
+                                </p>
+                                {postTags.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 pt-2">
+                                        {postTags.map((tag, i) => (
+                                            <Badge key={i} variant="secondary" className="px-3 py-1.5 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 font-medium text-xs border-transparent">#{tag}</Badge>
+                                        ))}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </>
                 )}
+            </CardContent>
 
-                {hasTags && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {post.tags.map((tag) => (
-                          <Badge
-                              key={tag}
-                              variant="outline"
-                              className="border-blue-200 bg-blue-50 text-xs font-medium text-blue-700"
-                          >
-                            #{tag}
-                          </Badge>
-                      ))}
+            {/* --- FOOTER --- */}
+            {!isEditing && (
+                <CardFooter className="px-5 py-4 border-t border-gray-50 flex items-center justify-between text-gray-500 bg-gray-50/30">
+                    <div className="flex items-center gap-6">
+                        <button className="flex items-center gap-2 hover:text-red-500 transition" onClick={handleLike}>
+                            <Heart className={cn("h-5 w-5", isLiked && "fill-red-500 text-red-500")} /> <span className="text-sm font-medium">{post.likeCount || 0}</span>
+                        </button>
+                        <button className="flex items-center gap-2 hover:text-blue-500 transition" onClick={goToDetail}>
+                            <MessageCircle className="h-5 w-5" /> <span className="text-sm font-medium">{post.commentCount || 0}</span>
+                        </button>
+                        <button className="flex items-center gap-2 hover:text-green-500 transition" onClick={(e) => { e.stopPropagation(); toast.success("Link kopyalandı"); }}>
+                            <Share2 className="h-5 w-5" />
+                        </button>
                     </div>
-                )}
-              </>
-          )}
-        </CardContent>
-
-        <CardFooter className="flex items-center justify-between border-t border-gray-50 px-5 py-3 text-gray-500">
-          <div className="flex items-center gap-4">
-            <button
-                className="flex items-center gap-1.5 transition hover:text-red-500"
-                onClick={handleLike}
-            >
-              <Heart className={cn("h-5 w-5", isLiked && "fill-red-500 text-red-500")} />
-              <span className="text-xs font-medium">{post.likeCount || 0}</span>
-            </button>
-
-            <button
-                className="flex cursor-pointer items-center gap-1.5 transition hover:text-blue-500"
-                onClick={goToDetail}
-            >
-              <MessageCircle className="h-5 w-5" />
-              <span className="text-xs font-medium">{post.commentCount || 0}</span>
-            </button>
-
-            <button
-                className="flex items-center gap-1.5 transition hover:text-green-500"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  toast.success("Link kopyalandı")
-                }}
-            >
-              <Share2 className="h-5 w-5" />
-            </button>
-          </div>
-
-          <button
-              onClick={handleSave}
-              disabled={saveLoading}
-              className="p-1 transition-colors hover:text-orange-500"
-          >
-            <Bookmark
-                className={cn(
-                    "h-5 w-5",
-                    isSaved ? "fill-orange-500 text-orange-500" : "text-gray-500"
-                )}
-            />
-          </button>
-        </CardFooter>
-      </Card>
-  )
+                    <button onClick={handleSave}>
+                        <Bookmark className={cn("h-5 w-5", isSaved && "fill-orange-500 text-orange-500")} />
+                    </button>
+                </CardFooter>
+            )}
+        </Card>
+    )
 }
