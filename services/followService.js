@@ -1,4 +1,4 @@
-import {BaseService, GET, POST} from "@/lib/BaseService";
+import {BaseService, DELETE, GET, POST} from "@/lib/BaseService";
 
 const FOLLOW_URL = "/api/follows"
 
@@ -13,5 +13,18 @@ export async function createFollow(followData) {
     } catch (error) {
         console.error("Follow oluşturma hatası:", error)
         throw error
+    }
+}
+
+export async function deleteFollow(id) {
+    try {
+        await BaseService({
+            method: DELETE,
+            url: `${FOLLOW_URL}/${id}`,
+        })
+        return true
+    } catch (error) {
+        console.error("Follow silme hatası:", error)
+        return false
     }
 }

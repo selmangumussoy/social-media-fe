@@ -1,150 +1,198 @@
-// src/components/layout/SearchProfilePage.jsx
+"use client";
 
-"use client"
+import React, { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { useDispatch, useSelector } from "react-redux";
 
-import React, { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
-import {useDispatch, useSelector} from "react-redux"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import { Link as LinkIcon, Loader2, UserPlus, Check } from "lucide-react"
-import { PostCard } from "@/components/feed/post-card"
-import { EmptyState } from "@/components/common/empty-state"
-import toast from "react-hot-toast"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Link as LinkIcon, Loader2, UserPlus, Check } from "lucide-react";
+
+import { PostCard } from "@/components/feed/post-card";
+import { EmptyState } from "@/components/common/empty-state";
+
+import toast from "react-hot-toast";
+
 import { followUser, unfollowUser } from "@/store/slices/followSlice";
 
-// Servisler
-import { getProfileById } from "@/services/profileService"
-import { getPostsByUser } from "@/services/postService"
-import { getUserById } from "@/services/userService"
-import { createFollow } from "@/services/followService"
+// Services
+import { getProfileById } from "@/services/profileService";
+import { getPostsByUser } from "@/services/postService";
+import { getUserById } from "@/services/userService";
+import { createFollow, deleteFollow } from "@/services/followService";
+import { getUserStatsByUserId } from "@/services/userStatsService";
 
 export default function SearchProfilePage() {
+    const { id } = useParams(); // URL'deki gerçek USER ID
+    const dispatch = useDispatch();
 
-    const { id } = useParams()                      // URL'deki kullanıcı ID'si (string)
-    const currentUser = useSelector(state => state.user.currentUser)
+    const currentUser = useSelector((state) => state.user.currentUser);
+    const followingList = useSelector((state) => state.follow.following);
+    const followMap = useSelector((state) => state.follow.followMap);
 
-    const [profile, setProfile] = useState(null)
-    const [userPosts, setUserPosts] = useState([])
-    const [loading, setLoading] = useState(true)
-    const [followLoading, setFollowLoading] = useState(false)
-    const isMyProfile = currentUser?.id && String(currentUser.id) === String(id)
-    const followingList = useSelector(state => state.follow.following);
-    const isFollowing = followingList.includes(profile?.id);
+    const [profile, setProfile] = useState(null);
+    const [userData, setUserData] = useState(null);
+    const [userPosts, setUserPosts] = useState([]);
 
+    const [stats, setStats] = useState({
+        followerCount: 0,
+        followedCount: 0,
+        postCount: 0
+    });
 
+    const [loading, setLoading] = useState(true);
+    const [followLoading, setFollowLoading] = useState(false);
+
+    const isMyProfile = currentUser?.id && String(currentUser.id) === String(id);
+
+    // doğru takip durumu kontrolü → USER ID
+    const isFollowing = userData ? followingList.includes(userData.id) : false;
+
+    // ---------------------- LOAD DATA ----------------------
     useEffect(() => {
-        async function loadData() {
+        async function loadAll() {
             if (!id) return;
 
             try {
-                setLoading(true)
+                setLoading(true);
 
-                // 1) Kullanıcı bilgisi
-                const userData = await getUserById(id)
-                if (!userData || !userData.profileId) {
-                    setProfile(null)
-                    return
+                // USER
+                const uData = await getUserById(id);
+                setUserData(uData);
+
+                if (!uData || !uData.profileId) {
+                    setProfile(null);
+                    return;
                 }
 
-                // 2) Profil bilgisi
-                const profileData = await getProfileById(userData.profileId)
-                setProfile(profileData)
+                // PROFILE
+                const pData = await getProfileById(uData.profileId);
+                setProfile(pData);
 
-                // 3) Kullanıcı postları
-                const posts = await getPostsByUser(userData.id)
-                setUserPosts(posts || [])
+                // POSTS
+                const posts = await getPostsByUser(uData.id);
+                setUserPosts(posts || []);
+
+                // STATS
+                const userStats = await getUserStatsByUserId(uData.id);
+                setStats({
+                    followerCount: userStats?.followerCount || 0,
+                    followedCount: userStats?.followedCount || 0,
+                    postCount: userStats?.postCount || 0
+                });
 
             } catch (err) {
-                console.error("Profil yükleme hatası:", err)
-                setProfile(null)
+                console.error("Profil yükleme hatası:", err);
+                setProfile(null);
             } finally {
-                setLoading(false)
+                setLoading(false);
             }
         }
 
-        loadData()
-    }, [id])
+        loadAll();
+    }, [id]);
 
-
-    const dispatch = useDispatch();
-
+    // ---------------------- FOLLOW - UNFOLLOW ----------------------
     const handleFollow = async () => {
         if (!currentUser?.id) {
             toast.error("Giriş yapmanız gerekiyor.");
             return;
         }
 
+        if (!userData?.id) return;
+
         try {
             setFollowLoading(true);
 
+            // ------------------ FOLLOW ------------------
             if (!isFollowing) {
-                await createFollow({
+                const response = await createFollow({
                     followerId: currentUser.id,
-                    followedId: profile.id
+                    followedId: userData.id
                 });
 
-                dispatch(followUser(profile.id));  // 🔥 GLOBAL STATE GÜNCELLENDİ
+                const followId = response?.data?.id || response?.id;
+
+                dispatch(
+                    followUser({
+                        userId: userData.id,
+                        followId
+                    })
+                );
+
+                setStats(prev => ({
+                    ...prev,
+                    followerCount: prev.followerCount + 1
+                }));
+
                 toast.success(`${profile.name} takip edildi.`);
-            } else {
-                dispatch(unfollowUser(profile.id));
-                toast.success("Takipten çıkıldı.");
             }
 
-        } catch (error) {
-            console.error("Takip hatası:", error);
+            // ------------------ UNFOLLOW ------------------
+            else {
+                const followId = followMap[userData.id];
+
+                const success = await deleteFollow(followId);
+
+                if (success) {
+                    dispatch(unfollowUser(userData.id));
+
+                    setStats(prev => ({
+                        ...prev,
+                        followerCount: Math.max(prev.followerCount - 1, 0)
+                    }));
+
+                    toast.success("Takipten çıkıldı.");
+                }
+            }
+        } catch (e) {
+            console.error("Takip işlemi hatası:", e);
             toast.error("Takip işlemi başarısız.");
         } finally {
             setFollowLoading(false);
         }
     };
 
+    // ---------------------- SHARE ----------------------
     const handleShare = () => {
-        if (typeof window !== "undefined") {
-            navigator.clipboard.writeText(window.location.href)
-            toast.success("Profil linki kopyalandı!")
-        }
-    }
+        navigator.clipboard.writeText(window.location.href);
+        toast.success("Profil linki kopyalandı!");
+    };
 
-
-    // ------------ UI RENDER -----------------
-
-    if (loading)
+    // ---------------------- LOADING ----------------------
+    if (loading) {
         return (
             <div className="flex min-h-screen items-center justify-center">
                 <Loader2 className="animate-spin" />
             </div>
-        )
+        );
+    }
 
-    if (!profile)
-        return <div className="text-center p-10">Kullanıcı bulunamadı.</div>
+    if (!profile || !userData) {
+        return <div className="text-center p-10">Kullanıcı bulunamadı.</div>;
+    }
 
-
+    // ---------------------- PAGE ----------------------
     return (
         <div className="mx-auto max-w-4xl p-4">
-
-            {/* PROFİL HEADER */}
-            <Card className="mb-6 overflow-hidden rounded-2xl border-border/50 shadow-sm">
-                <div className="h-32 bg-gradient-to-r from-primary/20 via-secondary/20 to-primary/20 sm:h-48" />
+            <Card className="mb-6 overflow-hidden rounded-2xl shadow-sm border-border/50">
+                <div className="h-32 sm:h-48 bg-gradient-to-r from-primary/20 via-secondary/20 to-primary/20" />
 
                 <CardContent className="relative px-6 pb-6">
+                    {/* Avatar + Buttons */}
                     <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 
-                        {/* Avatar */}
-                        <Avatar className="-mt-16 h-32 w-32 border-4 border-card ring-2 ring-border/30 sm:-mt-20">
+                        <Avatar className="-mt-16 sm:-mt-20 h-32 w-32 border-4 border-card ring-2 ring-border/30">
                             <AvatarImage src={profile.picture || "/placeholder.svg"} />
                             <AvatarFallback className="text-3xl">
                                 {profile.name?.charAt(0)}
                             </AvatarFallback>
                         </Avatar>
 
-                        {/* BUTONLAR */}
                         <div className="flex gap-2">
-
-                            {/* 🎯 TAKİP BUTONU — Artık doğru şekilde görünüyor */}
-                            {currentUser?.id && !isMyProfile && (
+                            {!isMyProfile && currentUser?.id && (
                                 <Button
                                     variant={isFollowing ? "outline" : "default"}
                                     size="sm"
@@ -168,7 +216,6 @@ export default function SearchProfilePage() {
                                 </Button>
                             )}
 
-                            {/* Paylaş */}
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -180,28 +227,38 @@ export default function SearchProfilePage() {
                         </div>
                     </div>
 
-                    {/* Profil Bilgileri */}
-                    <div className="space-y-3">
+                    {/* Stats */}
+                    <div className="flex items-center gap-10 mt-4 text-center">
                         <div>
-                            <h1 className="text-2xl font-bold">{profile.name}</h1>
-                            <p className="text-muted-foreground">@{profile.username}</p>
+                            <p className="text-xl font-bold">{stats.postCount}</p>
+                            <p className="text-muted-foreground text-sm">Gönderi</p>
                         </div>
+                        <div>
+                            <p className="text-xl font-bold">{stats.followerCount}</p>
+                            <p className="text-muted-foreground text-sm">Takipçi</p>
+                        </div>
+                        <div>
+                            <p className="text-xl font-bold">{stats.followedCount}</p>
+                            <p className="text-muted-foreground text-sm">Takip</p>
+                        </div>
+                    </div>
 
-                        {profile.bio && (
-                            <p className="leading-relaxed">{profile.bio}</p>
-                        )}
+                    {/* Profile Info */}
+                    <div className="space-y-3 mt-6">
+                        <h1 className="text-2xl font-bold">{profile.name}</h1>
+                        <p className="text-muted-foreground">@{profile.username}</p>
+                        {profile.bio && <p className="leading-relaxed">{profile.bio}</p>}
                     </div>
                 </CardContent>
             </Card>
 
-            {/* TABS */}
+            {/* Tabs */}
             <Tabs defaultValue="posts" className="space-y-6">
                 <TabsList className="grid w-full grid-cols-2 rounded-xl">
                     <TabsTrigger value="posts">Gönderiler</TabsTrigger>
                     <TabsTrigger value="about">Hakkında</TabsTrigger>
                 </TabsList>
 
-                {/* POSTLAR */}
                 <TabsContent value="posts">
                     {userPosts.length > 0 ? (
                         <div className="space-y-6">
@@ -214,23 +271,22 @@ export default function SearchProfilePage() {
                     )}
                 </TabsContent>
 
-                {/* HAKKINDA */}
                 <TabsContent value="about">
-                    <Card className="rounded-2xl border-border/50 shadow-sm">
+                    <Card className="rounded-2xl shadow-sm border-border/50">
                         <CardContent className="space-y-4 pt-6">
                             <div>
-                                <h3 className="mb-2 font-semibold">Biyografi</h3>
+                                <h3 className="font-semibold mb-2">Biyografi</h3>
                                 <p className="text-muted-foreground">{profile.bio || "-"}</p>
                             </div>
+
                             <div>
-                                <h3 className="mb-2 font-semibold">E-posta</h3>
+                                <h3 className="font-semibold mb-2">E-posta</h3>
                                 <p className="text-muted-foreground">{profile.email || "-"}</p>
                             </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
-
             </Tabs>
         </div>
-    )
+    );
 }
