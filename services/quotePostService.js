@@ -1,9 +1,6 @@
 import { BaseService, GET, POST, PUT, DELETE } from "@/lib/BaseService"
 
-
 const QUOTE_POST_URL = "/api/quote-posts"
-
-
 
 export async function getAllQuotePosts() {
     try {
@@ -11,8 +8,6 @@ export async function getAllQuotePosts() {
             method: GET,
             url: QUOTE_POST_URL,
         })
-        // Backend AbstractController -> Response<DataResponse<Res>>
-        // Genelde response.data.data dizisi döner
         return response?.data?.data || []
     } catch (error) {
         console.error("Kitap alıntılarını getirme hatası:", error)
@@ -23,9 +18,11 @@ export async function getAllQuotePosts() {
 
 export async function getQuotePostById(id) {
     try {
+        // Backend'de yeni açtığımız endpoint'i kullanıyoruz.
+        // Buradaki "id" parametresi Frontend'den gelen "Post ID"dir.
         const response = await BaseService({
             method: GET,
-            url: `${QUOTE_POST_URL}/${id}`,
+            url: `${QUOTE_POST_URL}/by-post/${id}`,
         })
         return response?.data?.data || null
     } catch (error) {
@@ -33,7 +30,6 @@ export async function getQuotePostById(id) {
         return null
     }
 }
-
 
 export async function createQuotePost(quoteData) {
     try {
@@ -81,7 +77,6 @@ export async function updateQuotePost(id, quoteData) {
         throw error
     }
 }
-
 
 export async function deleteQuotePost(id) {
     try {
