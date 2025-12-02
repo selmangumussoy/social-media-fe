@@ -1,4 +1,3 @@
-// src/components/layout/Navbar.jsx
 "use client"
 
 import Link from "next/link"
@@ -14,7 +13,7 @@ import { useEffect, useState } from "react"
 import { searchUsers } from "@/services/userService"
 
 export function Navbar() {
-  // Hooks çağrıları bileşenin en üstünde ve KOŞULSUZ olmalı
+  // HOOKS ÇAĞRILARI - Koşulsuz ve En Üstte
   const pathname = usePathname()
   const { theme, toggleTheme } = useTheme()
   const currentUser = useSelector((state) => state.user.currentUser)
@@ -25,18 +24,15 @@ export function Navbar() {
   const [results, setResults] = useState([])
   const [showDropdown, setShowDropdown] = useState(false)
 
-  // Hydration mismatch çözümü
+  // Hydration mismatch çözümü (Koşulsuz)
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Login/register sayfalarında navbar görünmez
+  // 1. Durum Kontrolü
   const isAuthPage = pathname === "/login" || pathname === "/register"
 
-  // DÜZELTME: Erken dönüş artık burada. Hooks'ların sıralaması korunur.
-  if (isAuthPage) return null
-
-  // 🔎 Debounce search
+  // 🔎 Debounce search (Koşulsuz)
   useEffect(() => {
     if (!searchQuery.trim()) {
       setResults([])
@@ -45,6 +41,8 @@ export function Navbar() {
     }
 
     const timeout = setTimeout(async () => {
+      // Bu kısım, searchUsers'ın bir API çağrısı olduğunu varsayar
+      // ve hatalı bir render'a yol açabilecek asenkron bir durumu tetiklemez.
       const data = await searchUsers(searchQuery)
       setResults(data)
       setShowDropdown(true)
@@ -53,6 +51,12 @@ export function Navbar() {
     return () => clearTimeout(timeout)
   }, [searchQuery])
 
+  // 2. Erken Dönüş (Tüm Hooks'lar çağrıldıktan sonra)
+  if (isAuthPage) {
+    return null
+  }
+
+  // ... (Geri kalan render mantığı)
   return (
       <nav className="sticky top-0 z-50 border-b border-border/50 bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/60">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4">
@@ -130,7 +134,7 @@ export function Navbar() {
 
             {/* Theme Toggle */}
             <Button size="icon" variant="ghost" onClick={toggleTheme} className="rounded-full">
-              {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+              {mounted && (theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />)}
             </Button>
 
             {/* Notifications */}
@@ -146,9 +150,9 @@ export function Navbar() {
               </Button>
             </Link>
 
-            {/* Avatar → ID tabanlı profil yönlendirme */}
+            {/* Avatar */}
             {mounted && currentUser?.id && (
-                <Link href={`/profile/${currentUser.id || currentUser.id}`}> {/* DÜZELTME: Rotayı ve ID'yi tutarlı hale getirdik */}
+                <Link href={`/profile/${currentUser.id}`}>
                   <Avatar className="h-9 w-9 cursor-pointer ring-2 ring-border/30 hover:ring-primary/50 hover:scale-105">
                     <AvatarImage src={currentUser.avatar || "/placeholder.svg"} />
                     <AvatarFallback>
