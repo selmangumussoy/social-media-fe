@@ -37,6 +37,7 @@ export default function QuotePostPage() {
     const [tags, setTags] = useState([])
     const [loading, setLoading] = useState(false)
     const [showPreview, setShowPreview] = useState(false)
+    const [isModalReadOnly, setIsModalReadOnly] = useState(false) // <-- YENİ
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value })

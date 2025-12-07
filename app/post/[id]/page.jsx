@@ -21,6 +21,15 @@ import { getPostById } from "@/services/postService"
 import { getQuotePostById } from "@/services/quotePostService"
 import { getBlogPostById } from "@/services/blogPostService"
 import { cn } from "@/lib/utils"
+import { getCommentsByPostId, createComment, updateComment, deleteComment } from "@/services/commentService";
+import PostHeader from '@/components/PostHeader';
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function PostDetailPage() {
     const router = useRouter()
@@ -36,6 +45,10 @@ export default function PostDetailPage() {
     const [comments, setComments] = useState([])
     const [loading, setLoading] = useState(true)
     const [isFollowing, setIsFollowing] = useState(false)
+
+    // Yorum State'leri
+    const [newComment, setNewComment] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Veri Çekme
     useEffect(() => {
@@ -54,7 +67,9 @@ export default function PostDetailPage() {
                         const blogData = await getBlogPostById(postId);
                         setDetail(blogData);
                     }
-                    setComments([]);
+                    // Yorumları Çek
+                    const fetchedComments = await getCommentsByPostId(postId);
+                    setComments(fetchedComments);
                 }
             } catch (error) {
                 console.error(error);
@@ -66,15 +81,87 @@ export default function PostDetailPage() {
         fetchData();
     }, [postId]);
 
+    // Yorum Gönderme
+    const handleSubmitComment = async () => {
+        if (!newComment.trim() || !currentUser?.id) {
+            toast.error("Lütfen bir yorum yazın veya giriş yapın.");
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            const commentData = {
+                postId: postId,
+                content: newComment,
+            };
+
+            const createdCommentResponse = await createComment(commentData);
+            toast.success("Yorum başarıyla eklendi!");
+
+            setComments(prev => [
+                {
+                    ...createdCommentResponse,
+                    userFullName: currentUser.fullName || currentUser.username,
+                    userPicture: currentUser.avatar,
+                    createdAt: new Date().toISOString()
+                },
+                ...(Array.isArray(prev) ? prev : [])
+            ]);
+
+            setNewComment("");
+            setPost(prevPost => ({...prevPost, commentCount: (prevPost.commentCount || 0) + 1}));
+
+        } catch (error) {
+            console.error("Yorum gönderme başarısız:", error);
+            toast.error("Yorum gönderme başarısız.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    // 🔥 YENİ: Yorum Silme İşlevi
+    const handleDeleteComment = async (commentId) => {
+        if (!confirm("Bu yorumu silmek istediğine emin misin?")) return;
+
+        const success = await deleteComment(commentId);
+        if (success) {
+            toast.success("Yorum silindi.");
+            // UI'dan anlık kaldır
+            setComments((prev) => prev.filter((c) => c.id !== commentId));
+            // Yorum sayısını azalt
+            setPost((prev) => ({ ...prev, commentCount: Math.max(0, prev.commentCount - 1) }));
+        } else {
+            toast.error("Yorum silinemedi.");
+        }
+    };
+
+    // 🔥 YENİ: Yorum Güncelleme İşlevi
+    const handleUpdateComment = async (commentId, newContent) => {
+        try {
+            await updateComment(commentId, newContent);
+            toast.success("Yorum güncellendi.");
+
+            // UI'da anlık güncelle
+            setComments((prev) => prev.map((c) =>
+                c.id === commentId ? { ...c, content: newContent } : c
+            ));
+            return true; // Başarılı olduğunu bildir
+        } catch (error) {
+            toast.error("Yorum güncellenemedi.");
+            return false;
+        }
+    };
+
     if (loading) return <div className="flex justify-center items-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>;
     if (!post) return <div className="flex justify-center pt-20 text-muted-foreground">Gönderi bulunamadı.</div>;
 
-    // --- Değişkenler ---
+    // Değişkenler
     const username = post.username || post.author?.username || "Kullanıcı";
     const fullName = post.fullName || post.author?.name || "İsimsiz";
     const avatarUrl = post.author?.avatar;
     const isLiked = (post.likes || []).includes(currentUser?.id);
     const isSaved = savedPosts.includes(post.id);
+
     let timeAgo = "";
     try { timeAgo = formatDistanceToNow(new Date(post.created), { addSuffix: true, locale: tr }); } catch (e) {}
 
@@ -82,20 +169,16 @@ export default function PostDetailPage() {
     const handleSave = () => dispatch(toggleSave(post.id));
     const handleFollow = () => { setIsFollowing(!isFollowing); toast.success(isFollowing ? "Takipten çıkıldı" : "Takip edildi!"); }
 
-    // Detaylar
     const bookName = detail?.bookName || post.bookTitle;
     const authorName = detail?.author || post.bookAuthor;
     const coverImage = detail?.image || post.image;
     const quoteContent = detail?.thought || post.content;
     const pageNo = detail?.quotePage || detail?.quotePost?.quotePage;
-
-    // Video URL
     const videoUrl = detail?.video || post.video || post.videoUrl || post.media;
 
-    // ====================================================================================
-    // 🟠 SENARYO 1: QUOTE POST (ALINTI)
-    // Yorumlar: Sayfa akışında (Dinamik Yükseklik)
-    // ====================================================================================
+    // --- RENDER ---
+
+    // SENARYO 1: QUOTE POST
     if (post.type === "QUOTE_POST") {
         return (
             <div className="min-h-screen bg-[#F9F9F9] py-8 px-4">
@@ -108,7 +191,6 @@ export default function PostDetailPage() {
                         <div className="lg:col-span-2 space-y-6">
                             <Card className="p-6 sm:p-8 border border-gray-100 shadow-sm rounded-2xl bg-white">
                                 <PostHeader username={username} fullName={fullName} avatarUrl={avatarUrl} timeAgo={timeAgo} isFollowing={isFollowing} handleFollow={handleFollow} currentUserId={currentUser?.id} postUserId={post.userId} />
-
                                 <div className="bg-[#FAFAFA] rounded-2xl p-8 md:p-10 relative mb-6 border border-gray-100">
                                     <Quote className="h-10 w-10 text-gray-300 mb-4 transform -scale-x-100 opacity-50" />
                                     <p className="font-serif text-2xl md:text-3xl text-gray-800 leading-relaxed mb-6">"{quoteContent}"</p>
@@ -117,10 +199,19 @@ export default function PostDetailPage() {
                                 <PostActions isLiked={isLiked} isSaved={isSaved} likeCount={post.likeCount} handleLike={handleLike} handleSave={handleSave} />
                             </Card>
 
-                            {/* 👇 Burası Sabit Değil, İçerik Kadar Uzar 👇 */}
                             <div className="mt-8">
                                 <h3 className="font-bold text-lg text-gray-900 mb-4">Yanıtlar ({post.commentCount})</h3>
-                                <CommentSectionDynamic comments={comments} currentUser={currentUser} />
+                                {/* 👇 PROPLAR BURAYA EKLENDİ */}
+                                <CommentSectionDynamic
+                                    comments={comments}
+                                    newComment={newComment}
+                                    setNewComment={setNewComment}
+                                    handleSubmitComment={handleSubmitComment}
+                                    isSubmitting={isSubmitting}
+                                    currentUser={currentUser}
+                                    onDelete={handleDeleteComment}
+                                    onUpdate={handleUpdateComment}
+                                />
                             </div>
                         </div>
 
@@ -142,12 +233,7 @@ export default function PostDetailPage() {
         )
     }
 
-
-    // ====================================================================================
-    // 🟢 SENARYO 2: COMPLEX BLOG POST (Split Layout)
-    // Yorumlar: Sticky Sağ Panel (Kendi içinde scroll olur)
-    // ====================================================================================
-
+    // SENARYO 2: COMPLEX BLOG POST
     const hasImage = detail?.image || (detail?.blogContent && detail.blogContent.includes("<img")) || (post.content && post.content.includes("http"));
     const isLongContent = (post.content?.length > 500) || (detail?.blogContent?.length > 800);
     const useSplitLayout = post.type === "BLOG_POST" && (hasImage || isLongContent || videoUrl);
@@ -164,11 +250,9 @@ export default function PostDetailPage() {
                         <div className="lg:col-span-8">
                             <Card className="border border-gray-200 shadow-sm rounded-2xl bg-white overflow-hidden p-8 sm:p-10">
                                 <PostHeader username={username} fullName={fullName} avatarUrl={avatarUrl} timeAgo={timeAgo} isFollowing={isFollowing} handleFollow={handleFollow} currentUserId={currentUser?.id} postUserId={post.userId} />
-
                                 <div className="prose prose-lg max-w-none text-gray-800 leading-loose mb-8">
                                     {detail?.blogContent ? <div dangerouslySetInnerHTML={{ __html: detail.blogContent }} /> : <p className="whitespace-pre-wrap">{post.content}</p>}
                                 </div>
-
                                 {videoUrl && (
                                     <div className="mb-8 rounded-xl overflow-hidden bg-black shadow-sm">
                                         <video controls className="w-full max-h-[500px] mx-auto">
@@ -177,21 +261,37 @@ export default function PostDetailPage() {
                                         </video>
                                     </div>
                                 )}
-
                                 {post.tags && <div className="flex flex-wrap gap-2 mb-8">{post.tags.map((tag, i) => <Badge key={i} variant="secondary" className="px-3 py-1 bg-gray-100 text-gray-600">#{tag}</Badge>)}</div>}
                                 <PostActions isLiked={isLiked} isSaved={isSaved} likeCount={post.likeCount} handleLike={handleLike} handleSave={handleSave} />
                             </Card>
                         </div>
 
-                        {/* 👇 Burası Sabit (Sticky) Panel - Kendi İçinde Scroll Olur 👇 */}
                         <div className="lg:col-span-4 relative">
                             <div className="sticky top-6">
                                 <Card className="flex flex-col border border-gray-200 shadow-sm rounded-2xl bg-white overflow-hidden max-h-[calc(100vh-80px)]">
                                     <div className="p-4 border-b border-gray-100 bg-white z-10 shrink-0"><h3 className="font-bold text-gray-900">Yanıtlar ({post.commentCount})</h3></div>
                                     <div className="overflow-y-auto p-4 space-y-5 bg-[#fafafa]">
-                                        {comments.length > 0 ? comments.map((comment) => (<CommentItem key={comment.id} user={comment.user.fullName} time={formatDistanceToNow(new Date(comment.createdAt), { locale: tr })} text={comment.content} avatar={comment.user.avatar} />)) : <div className="flex flex-col items-center justify-center py-8 text-gray-400 text-sm"><MessageCircle className="h-8 w-8 mb-2 opacity-20" />Henüz yorum yok.</div>}
+                                        {/* 👇 SENARYO 2 İÇİN MANUEL PROPLARI COMMENTITEM'A İLETİYORUZ */}
+                                        {comments.length > 0 ? comments.map((comment) => (
+                                            <CommentItem
+                                                key={comment.id}
+                                                comment={comment}
+                                                currentUser={currentUser} // 👈 Eklendi
+                                                onDelete={handleDeleteComment} // 👈 Eklendi
+                                                onUpdate={handleUpdateComment} // 👈 Eklendi
+                                            />
+                                        )) : <div className="flex flex-col items-center justify-center py-8 text-gray-400 text-sm"><MessageCircle className="h-8 w-8 mb-2 opacity-20" />Henüz yorum yok.</div>}
                                     </div>
-                                    <div className="p-3 bg-white border-t border-gray-100 shrink-0"><CommentInput avatar={currentUser?.avatar} /></div>
+                                    <div className="p-3 bg-white border-t border-gray-100 shrink-0">
+                                        <CommentInput
+                                            avatar={currentUser?.avatar}
+                                            name={currentUser?.fullName || currentUser?.username}
+                                            newComment={newComment}
+                                            setNewComment={setNewComment}
+                                            handleSubmitComment={handleSubmitComment}
+                                            isSubmitting={isSubmitting}
+                                        />
+                                    </div>
                                 </Card>
                             </div>
                         </div>
@@ -201,11 +301,7 @@ export default function PostDetailPage() {
         );
     }
 
-
-    // ====================================================================================
-    // 🔵 SENARYO 3: THOUGHT POST & KISA BLOG
-    // Yorumlar: Sayfa akışında (Dinamik Yükseklik)
-    // ====================================================================================
+    // SENARYO 3: THOUGHT POST & KISA BLOG
     return (
         <div className="min-h-screen bg-[#F9F9F9] py-8 px-4">
             <div className="max-w-3xl mx-auto">
@@ -215,12 +311,7 @@ export default function PostDetailPage() {
 
                 <Card className="border border-gray-200 shadow-sm rounded-2xl bg-white overflow-hidden p-8 mb-8">
                     <PostHeader username={username} fullName={fullName} avatarUrl={avatarUrl} timeAgo={timeAgo} isFollowing={isFollowing} handleFollow={handleFollow} currentUserId={currentUser?.id} postUserId={post.userId} />
-
-                    <div className="text-xl sm:text-2xl text-gray-800 leading-relaxed mb-6 font-medium whitespace-pre-wrap">
-                        {post.content}
-                    </div>
-
-                    {/* Video Varsa Göster */}
+                    <div className="text-xl sm:text-2xl text-gray-800 leading-relaxed mb-6 font-medium whitespace-pre-wrap">{post.content}</div>
                     {videoUrl && (
                         <div className="mb-6 mt-4 rounded-xl overflow-hidden bg-black shadow-sm border border-gray-100">
                             <video controls className="w-full max-h-[500px] mx-auto" key={videoUrl}>
@@ -229,80 +320,81 @@ export default function PostDetailPage() {
                             </video>
                         </div>
                     )}
-
                     <PostActions isLiked={isLiked} isSaved={isSaved} likeCount={post.likeCount} handleLike={handleLike} handleSave={handleSave} />
                 </Card>
 
-                {/* 👇 Burası Sabit Değil, İçerik Kadar Uzar 👇 */}
                 <div className="mb-4"><h3 className="font-bold text-lg text-gray-900">Yanıtlar ({post.commentCount})</h3></div>
-                <CommentSectionDynamic comments={comments} currentUser={currentUser} />
+                {/* 👇 PROPLAR BURAYA EKLENDİ */}
+                <CommentSectionDynamic
+                    comments={comments}
+                    newComment={newComment}
+                    setNewComment={setNewComment}
+                    handleSubmitComment={handleSubmitComment}
+                    isSubmitting={isSubmitting}
+                    currentUser={currentUser}
+                    onDelete={handleDeleteComment}
+                    onUpdate={handleUpdateComment}
+                />
             </div>
         </div>
     );
 }
 
-// --- Bileşenler ---
-
-function PostHeader({ username, fullName, avatarUrl, timeAgo, isFollowing, handleFollow, currentUserId, postUserId }) {
-    return (
-        <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-                <Link href={`/profile/${username}`}>
-                    <Avatar className="h-12 w-12 border border-gray-100 cursor-pointer">
-                        <AvatarImage src={avatarUrl} />
-                        <AvatarFallback>{fullName ? fullName.charAt(0) : "U"}</AvatarFallback>
-                    </Avatar>
-                </Link>
-                <div>
-                    <h4 className="font-bold text-gray-900 leading-tight hover:underline cursor-pointer">{fullName}</h4>
-                    <p className="text-sm text-gray-500">@{username} · {timeAgo}</p>
-                </div>
-            </div>
-            {currentUserId !== postUserId && (
-                <Button size="sm" onClick={handleFollow} className={cn("rounded-full px-5 h-8 text-xs font-semibold", isFollowing ? "bg-white text-black border border-gray-300 hover:bg-gray-50" : "bg-black text-white hover:bg-gray-800")}>
-                    {isFollowing ? "Takip Ediliyor" : "Takip Et"}
-                </Button>
-            )}
-        </div>
-    )
-}
+// --- YARDIMCI BİLEŞENLER ---
 
 function PostActions({ isLiked, isSaved, likeCount, handleLike, handleSave }) {
     return (
-        <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+        <div className="flex justify-between items-center pt-4 border-t border-gray-100 mt-4">
             <div className="flex gap-6">
-                <button onClick={handleLike} className="flex items-center gap-2 text-gray-500 hover:text-red-500 transition group">
-                    <Heart className={cn("h-6 w-6 group-hover:scale-110 transition-transform", isLiked && "fill-red-500 text-red-500")} />
-                    <span className="font-medium">{likeCount}</span>
+                <button
+                    onClick={handleLike}
+                    className={`flex items-center gap-2 transition group ${isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}`}
+                >
+                    <Heart className={`h-6 w-6 group-hover:scale-110 transition-transform ${isLiked ? "fill-red-500" : ""}`} />
+                    <span className="font-medium">{likeCount || 0}</span>
                 </button>
                 <button className="flex items-center gap-2 text-gray-500 hover:text-green-500 transition group">
                     <Share2 className="h-6 w-6 group-hover:scale-110 transition-transform" />
                 </button>
             </div>
-            <button onClick={handleSave} className="text-gray-500 hover:text-black">
-                <Bookmark className={cn("h-6 w-6", isSaved && "fill-black text-black")} />
+            <button onClick={handleSave} className={`transition ${isSaved ? 'text-black' : 'text-gray-500 hover:text-black'}`}>
+                <Bookmark className={`h-6 w-6 ${isSaved ? "fill-black" : ""}`} />
             </button>
         </div>
     )
 }
 
-// 🔥 DİNAMİK YORUM ALANI (Scroll yok, sayfa uzar) 🔥
-function CommentSectionDynamic({ comments, currentUser }) {
+function CommentSectionDynamic({ comments, newComment, setNewComment, handleSubmitComment, isSubmitting, currentUser, onDelete, onUpdate }) {
     return (
         <div className="space-y-6">
-            {/* Input Kartı (Küçük ve Bağımsız) */}
             <Card className="p-4 border border-gray-200 shadow-sm rounded-2xl bg-white">
-                <Textarea placeholder="Düşüncelerini paylaş..." className="border-none resize-none focus-visible:ring-0 min-h-[60px] text-base bg-transparent p-1" />
+                <Textarea
+                    placeholder="Düşüncelerini paylaş..."
+                    className="border-none resize-none focus-visible:ring-0 min-h-[60px] text-base bg-transparent p-1"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                />
                 <div className="flex justify-end mt-2 pt-2 border-t border-gray-100">
-                    <Button className="bg-[#343a40] hover:bg-black text-white h-8 text-xs px-5 rounded-md font-medium">Yanıtla</Button>
+                    <Button
+                        className="bg-[#343a40] hover:bg-black text-white h-8 text-xs px-5 rounded-md font-medium"
+                        onClick={handleSubmitComment}
+                        disabled={isSubmitting || !newComment?.trim()}
+                    >
+                        {isSubmitting ? 'Gönderiliyor...' : 'Yanıtla'}
+                    </Button>
                 </div>
             </Card>
 
-            {/* Yorumlar Listesi (Div içinde, Card değil) */}
             <div className="space-y-4">
                 {comments.length > 0 ? (
                     comments.map((comment) => (
-                        <CommentItem key={comment.id} user={comment.user.fullName} time={formatDistanceToNow(new Date(comment.createdAt), { locale: tr })} text={comment.content} avatar={comment.user.avatar} />
+                        <CommentItem
+                            key={comment.id}
+                            comment={comment}
+                            currentUser={currentUser} // 🔐 PROP GEÇİRİLDİ
+                            onDelete={onDelete}       // 🗑️ PROP GEÇİRİLDİ
+                            onUpdate={onUpdate}       // ✏️ PROP GEÇİRİLDİ
+                        />
                     ))
                 ) : (
                     <div className="text-center py-6">
@@ -314,38 +406,127 @@ function CommentSectionDynamic({ comments, currentUser }) {
     )
 }
 
-function CommentItem({ user, time, text, avatar }) {
+// 🔥🔥 3 NOKTA MENÜLÜ GÜNCELLENMİŞ COMMENTITEM 🔥🔥
+function CommentItem({ comment, currentUser, onDelete, onUpdate }) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editText, setEditText] = useState(comment.content);
+
+    const userFullName = comment.userFullName || comment.username || "Anonim";
+    const avatar = comment.userPicture;
+
+    // 🔐 GÜVENLİ KIYASLAMA
+    const isOwner = currentUser?.id && (String(currentUser.id) === String(comment.userId));
+
+    const handleSave = async () => {
+        if (!editText.trim() || editText === comment.content) {
+            setIsEditing(false);
+            return;
+        }
+        const success = await onUpdate(comment.id, editText);
+        if (success) setIsEditing(false);
+    };
+
+    let timeAgo = "";
+    try {
+        timeAgo = formatDistanceToNow(new Date(comment.created || comment.createdAt), { addSuffix: true, locale: tr });
+    } catch (e) { timeAgo = ""; }
+
     return (
-        <div className="flex gap-3 items-start group">
-            <Avatar className="h-9 w-9 mt-1 border border-white shadow-sm">
-                <AvatarImage src={avatar} />
-                <AvatarFallback>{user ? user.charAt(0) : "?"}</AvatarFallback>
-            </Avatar>
+        <div className="flex gap-3 items-start group w-full">
+            <Link href={`/profile/${comment.username}`}>
+                <Avatar className="h-9 w-9 mt-1 border border-white shadow-sm cursor-pointer">
+                    <AvatarImage src={avatar} />
+                    <AvatarFallback>{userFullName.charAt(0)}</AvatarFallback>
+                </Avatar>
+            </Link>
+
             <div className="flex-1">
-                <div className="flex justify-between items-baseline">
-                    <span className="font-bold text-sm text-gray-900">{user}</span>
-                    <span className="text-[10px] text-gray-400">{time}</span>
+                {/* Header Alanı: İsim + Tarih + Menü */}
+                <div className="flex justify-between items-start">
+                    <div className="flex flex-col w-full">
+                        <div className="flex items-baseline gap-2">
+                            <span className="font-bold text-sm text-gray-900">{userFullName}</span>
+                            <span className="text-[10px] text-gray-400">{timeAgo}</span>
+                        </div>
+
+                        {isEditing ? (
+                            <div className="mt-2 w-full">
+                                <Textarea
+                                    value={editText}
+                                    onChange={(e) => setEditText(e.target.value)}
+                                    className="min-h-[60px] text-sm mb-2 bg-white w-full"
+                                />
+                                <div className="flex gap-2 justify-end">
+                                    <Button variant="ghost" size="sm" onClick={() => { setIsEditing(false); setEditText(comment.content); }} className="h-7 text-xs">İptal</Button>
+                                    <Button size="sm" onClick={handleSave} className="h-7 text-xs bg-black hover:bg-gray-800">Kaydet</Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-700 leading-relaxed mt-1 whitespace-pre-wrap break-words">{comment.content}</p>
+                        )}
+                    </div>
+
+                    {/* 🔥 3 NOKTA MENÜSÜ (Sadece Sahibi ve Edit Modunda Değilse) */}
+                    {isOwner && !isEditing && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition-colors focus:outline-none">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-32 bg-white shadow-md border-gray-100">
+                                <DropdownMenuItem onClick={() => setIsEditing(true)} className="cursor-pointer text-gray-700 hover:bg-gray-50 text-xs">
+                                    <Pencil className="mr-2 h-3 w-3" />
+                                    Düzenle
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onDelete(comment.id)} className="cursor-pointer text-red-600 hover:bg-red-50 hover:text-red-700 text-xs focus:bg-red-50 focus:text-red-700">
+                                    <Trash2 className="mr-2 h-3 w-3" />
+                                    Sil
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
                 </div>
-                <p className="text-sm text-gray-700 leading-relaxed mt-1">{text}</p>
-                <div className="flex gap-3 mt-2">
-                    <button className="text-xs font-medium text-gray-500 hover:text-gray-900">Beğen</button>
-                    <button className="text-xs font-medium text-gray-500 hover:text-gray-900">Yanıtla</button>
-                </div>
+
+                {/* Alt Aksiyon Butonları (Beğen/Yanıtla) - Edit Modunda Gizlenir */}
+                {!isEditing && (
+                    <div className="flex gap-4 mt-2 items-center">
+                        <button className="text-xs font-medium text-gray-500 hover:text-gray-900 flex items-center gap-1 transition-colors">
+                            <Heart className="w-3 h-3" /> Beğen
+                        </button>
+                        <button className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors">
+                            Yanıtla
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     )
 }
 
-// Sticky Blog Panelindeki Input
-function CommentInput({ avatar }) {
+function CommentInput({ avatar, name, newComment, setNewComment, handleSubmitComment, isSubmitting }) {
+    // İsim varsa baş harfini al, yoksa 'U' (User) göster
+    const initial = name ? name.charAt(0).toUpperCase() : "U";
+
     return (
         <div className="flex gap-2 items-end bg-gray-50 p-2 rounded-xl border border-gray-200 focus-within:ring-1 focus-within:ring-gray-300 transition-all">
-            <Avatar className="h-8 w-8 mb-1 ml-1"><AvatarImage src={avatar} /><AvatarFallback>S</AvatarFallback></Avatar>
+            <Avatar className="h-8 w-8 mb-1 ml-1">
+                <AvatarImage src={avatar} />
+                {/* 👇 Burası artık dinamik */}
+                <AvatarFallback>{initial}</AvatarFallback>
+            </Avatar>
             <Textarea
                 placeholder="Bir yanıt yaz..."
                 className="flex-1 min-h-[40px] max-h-[120px] bg-transparent border-none resize-none focus-visible:ring-0 p-2 text-sm placeholder:text-gray-400"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
             />
-            <Button size="icon" className="h-8 w-8 rounded-lg bg-blue-600 hover:bg-blue-700 mb-1 mr-1 shrink-0">
+            <Button
+                size="icon"
+                className="h-8 w-8 rounded-lg bg-blue-600 hover:bg-blue-700 mb-1 mr-1 shrink-0"
+                onClick={handleSubmitComment}
+                disabled={isSubmitting || !newComment?.trim()}
+            >
                 <Send className="h-4 w-4 text-white" />
             </Button>
         </div>
