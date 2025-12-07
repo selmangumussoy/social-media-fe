@@ -126,10 +126,16 @@ export default function PostDetailPage() {
         const success = await deleteComment(commentId);
         if (success) {
             toast.success("Yorum silindi.");
-            // UI'dan anlık kaldır
+
+            // 1. UI'dan yorumu kaldır
             setComments((prev) => prev.filter((c) => c.id !== commentId));
-            // Yorum sayısını azalt
-            setPost((prev) => ({ ...prev, commentCount: Math.max(0, prev.commentCount - 1) }));
+
+            // 2. Yorum sayısını azalt (Güvenli Hesaplama)
+            setPost((prev) => ({
+                ...prev,
+                // 👇 EĞER prev.commentCount null ise 0 kabul et, sonra 1 çıkar.
+                commentCount: Math.max(0, (prev.commentCount || 0) - 1)
+            }));
         } else {
             toast.error("Yorum silinemedi.");
         }
